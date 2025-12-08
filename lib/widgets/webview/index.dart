@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:webview_base/config/env_config.dart';
-import 'package:webview_base/provider/webViewControllerProvider.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -9,24 +8,28 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:webview_base/provider/webviewURLProvider.dart';
-import 'package:webview_base/widgets/webview/widgets.dart';
+// ignore: implementation_imports
+import 'package:provider/src/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_base/config/env_config.dart';
+import 'package:webview_base/provider/webViewControllerProvider.dart';
+import 'package:webview_base/provider/webviewURLProvider.dart';
+import 'package:webview_base/widgets/webview/not_found.dart';
+import 'package:webview_base/widgets/webview/webview_window.dart';
+
 import '../../constants/javascript.dart';
-import '../../models/web_post_message.dart';
-import '../../utils/permission.dart';
-import '../NoInternetWidget.dart';
-// ignore: implementation_imports
-import 'package:provider/src/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import '../../provider/navigationBarProvider.dart';
 import '../../helpers/Colors.dart';
-import '../../utils/webview.dart';
+import '../../models/web_post_message.dart';
+import '../../provider/navigationBarProvider.dart';
 import '../../provider/webviewLoadingProvider.dart';
+import '../../utils/permission.dart';
+import '../../utils/webview.dart';
+import 'loading_overlay.dart';
+import 'no_internet_widget.dart';
 
 class WebViewContainer extends StatefulWidget {
   final String url;
@@ -79,7 +82,7 @@ class _WebViewContainerState extends State<WebViewContainer>
   final env = EnvConfig.instance;
 
   PackageInfo? packageInfo;
-  WebviewWidgets webviewWidgets = WebviewWidgets();
+  WebviewWindow webviewWindow = WebviewWindow();
   CookieManager cookieManager = CookieManager.instance();
   InAppWebViewController? webViewController;
   BuildContext? dialogContext;
@@ -387,14 +390,6 @@ class _WebViewContainerState extends State<WebViewContainer>
   Widget build(BuildContext context) {
     return Scaffold(
         key: _scaffoldKey,
-        floatingActionButton: widget.showDevToolButton
-            ? webviewWidgets.floatingActionButton(
-                context: context,
-                webviewHelper: webviewUtils,
-                fToast: fToast,
-                packageInfo: packageInfo,
-                env: env.env)
-            : null,
         body: Column(
           children: [
             Expanded(
@@ -441,11 +436,16 @@ class _WebViewContainerState extends State<WebViewContainer>
                                         onScrollChanged(y: y);
                                       },
                                       onLoadStart: (controller, url) async {
-                                        // Reset loading state when webview starts loading
-                                        Provider.of<WebViewLoadingProvider>(
+                                        // Only reset loading state on initial load
+                                        // After initial load completes, don't reset to avoid showing splash again
+                                        final loadingProvider =
+                                            Provider.of<WebViewLoadingProvider>(
                                                 context,
-                                                listen: false)
-                                            .reset();
+                                                listen: false);
+                                        // Only reset if progress hasn't reached 1.0 yet (initial load not completed)
+                                        if (loadingProvider.progress < 1.0) {
+                                          loadingProvider.reset();
+                                        }
                                         onLoadStart(
                                             controller: controller, url: url);
                                       },
@@ -525,11 +525,12 @@ class _WebViewContainerState extends State<WebViewContainer>
                                           (controller, url, statusCode) {
                                         _pullToRefreshController
                                             .endRefreshing();
-                                        print("onReceivedHttpError");
-                                        setState(() {
-                                          showErrorPage = true;
-                                          isLoading = false;
-                                        });
+                                        print(
+                                            "onReceivedHttpError $statusCode");
+                                        // setState(() {
+                                        //   showErrorPage = true;
+                                        //   isLoading = false;
+                                        // });
                                       },
                                       onReceivedServerTrustAuthRequest:
                                           (controller, challenge) async {
@@ -565,6 +566,8 @@ class _WebViewContainerState extends State<WebViewContainer>
                                           this.progress = progress / 100;
                                         });
                                         // Notify loading provider
+                                        // The provider will handle preventing progress from going below 1.0
+                                        // after initial load completes
                                         Provider.of<WebViewLoadingProvider>(
                                                 context,
                                                 listen: false)
@@ -605,7 +608,7 @@ class _WebViewContainerState extends State<WebViewContainer>
                                         }
 
                                         print('onCreateWindow $webUri');
-                                        webviewWidgets.createWindow(
+                                        webviewWindow.createWindow(
                                             windowId:
                                                 createWindowRequest.windowId,
                                             setState: setState,
@@ -652,13 +655,6 @@ class _WebViewContainerState extends State<WebViewContainer>
                                       onConsoleMessage: (controller, message) {
                                         print(
                                             '------console-log: ${message.message}');
-                                        if (message.message
-                                            .contains("Network Error")) {
-                                          setState(() {
-                                            noInternet = true;
-                                            showNoInternet = true;
-                                          });
-                                        }
                                       },
                                     )
                                   : Center(
@@ -681,29 +677,27 @@ class _WebViewContainerState extends State<WebViewContainer>
                                       }),
                                     )
                                   : const SizedBox(height: 0, width: 0),
-                              // showErrorPage
-                              //     ? Center(
-                              //         child: NotFound(
-                              //             webViewController:
-                              //                 webViewController!,
-                              //             url: url,
-                              //             title1: CustomStrings.pageNotFound1,
-                              //             title2:
-                              //                 CustomStrings.pageNotFound2))
-                              //     : const SizedBox(height: 0, width: 0),
-                              // slowInternetPage
-                              //     ? Center(
-                              //         child: NotFound(
-                              //             webViewController:
-                              //                 webViewController!,
-                              //             url: url,
-                              //             title1: CustomStrings.incorrectURL1,
-                              //             title2:
-                              //                 CustomStrings.incorrectURL2))
-                              //     : const SizedBox(height: 0, width: 0),
+                              showErrorPage
+                                  ? Center(
+                                      child: NotFound(
+                                          webViewController: webViewController!,
+                                          url: url,
+                                          title1: 'Page not found',
+                                          title2:
+                                              'Page not found, please try again'))
+                                  : const SizedBox(height: 0, width: 0),
+                              slowInternetPage
+                                  ? Center(
+                                      child: NotFound(
+                                          webViewController: webViewController!,
+                                          url: url,
+                                          title1: 'Incorrect URL',
+                                          title2:
+                                              'Incorrect URL, please try again'))
+                                  : const SizedBox(height: 0, width: 0),
                               // Loading overlay circle
                               progress < 1.0 && _validURL
-                                  ? _LoadingOverlay(
+                                  ? LoadingOverlay(
                                       progress: progress,
                                       animation: animation,
                                     )
@@ -714,89 +708,5 @@ class _WebViewContainerState extends State<WebViewContainer>
             )
           ],
         ));
-  }
-}
-
-// Loading overlay with circle indicator
-class _LoadingOverlay extends StatelessWidget {
-  final double progress;
-  final Animation<double> animation;
-
-  const _LoadingOverlay({
-    required this.progress,
-    required this.animation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
-      color: Colors.black.withOpacity(0.4),
-      child: Center(
-        child: Container(
-          width: 90,
-          height: 90,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Color(0xff5A4FF3).withOpacity(0.3),
-                blurRadius: 15,
-                spreadRadius: 3,
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Outer progress circle
-              SizedBox(
-                width: 80,
-                height: 80,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 5,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Color(0xff5A4FF3),
-                  ),
-                  backgroundColor: Colors.grey[100],
-                ),
-              ),
-              // Inner pulsing circle with gradient
-              AnimatedBuilder(
-                animation: animation,
-                builder: (context, child) {
-                  return Container(
-                    width: 45 + (animation.value * 8),
-                    height: 45 + (animation.value * 8),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          Color(0xff5A4FF3)
-                              .withOpacity(0.4 - (animation.value * 0.2)),
-                          Color(0xff02D3AE)
-                              .withOpacity(0.2 - (animation.value * 0.1)),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-              // Center progress text
-              Text(
-                '${(progress * 100).toInt()}%',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xff5A4FF3),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:webview_base/constants/javascript.dart';
 import 'package:webview_base/helpers/Themes.dart';
-import 'package:webview_base/widgets/webview/widgets.dart';
+import 'package:webview_base/widgets/common/toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_app_badge_control/flutter_app_badge_control.dart';
@@ -423,13 +423,13 @@ class WebviewUtils {
     if (myDeviceToken != null) {
       Clipboard.setData(ClipboardData(text: myDeviceToken));
       fToast.showToast(
-        child: WebviewWidgets.toast("Copied FCM Token to clipboard!"),
+        child: AppToast.toast("Copied FCM Token to clipboard!"),
         gravity: ToastGravity.BOTTOM,
         toastDuration: const Duration(seconds: 2),
       );
     } else {
       fToast.showToast(
-        child: WebviewWidgets.toast("Copied failed!"),
+        child: AppToast.toast("Copied failed!"),
         gravity: ToastGravity.BOTTOM,
         toastDuration: const Duration(seconds: 2),
       );

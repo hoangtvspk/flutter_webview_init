@@ -1,22 +1,16 @@
 import 'dart:io';
 
-import 'package:webview_base/config/env_config.dart';
-import 'package:webview_base/provider/webViewControllerProvider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:provider/provider.dart';
 import 'package:webview_base/helpers/Themes.dart';
 import 'package:webview_base/helpers/icons.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
+import 'package:webview_base/provider/webViewControllerProvider.dart';
 
-import '../../provider/appGlobalKey.dart';
-import '../ExpandingActionButton.dart';
-
-class WebviewWidgets {
+class WebviewWindow {
   void createWindow({
     required int windowId,
     required void Function(void Function()) setState,
@@ -235,136 +229,5 @@ class WebviewWidgets {
         isOpenDialog = false;
       });
     });
-  }
-
-  static Widget toast(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25.0),
-        color: Colors.blueAccent,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.check,
-            color: Colors.white,
-          ),
-          const SizedBox(
-            width: 12.0,
-          ),
-          Text(
-            text,
-            style: const TextStyle(fontSize: 11, color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Future<void> showEnterUrlDialog(BuildContext context) async {
-    TextEditingController textEditingController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false, // user must tap button!
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Enter URL'),
-          content: SingleChildScrollView(
-              child: Form(
-            key: formKey,
-            child: ListBody(
-              children: <Widget>[
-                TextFormField(
-                  validator: (website) {
-                    String pattern =
-                        r'^((?:.|\n)*?)((http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)([-A-Z0-9.]+)(/[-A-Z0-9+&@#/%=~_|!:,.;]*)?(\?[A-Z0-9+&@#/%=~_|!:‌​,.;]*)?)';
-                    RegExp regExp = RegExp(pattern);
-                    if (website!.isEmpty) {
-                      return "Please enter your URL";
-                    } else if (!(regExp.hasMatch(website))) {
-                      return "Invalid URL";
-                    } else {
-                      return null;
-                    }
-                  },
-                  controller: textEditingController,
-                  decoration: InputDecoration(
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: Colors.grey,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: Colors.blue,
-                        ),
-                      ),
-                      border: OutlineInputBorder(
-                          borderSide: BorderSide(
-                        color: Colors.grey,
-                      )),
-                      labelStyle: TextStyle(
-                          color: Colors.grey, fontWeight: FontWeight.w500),
-                      floatingLabelStyle: TextStyle(
-                          color: Colors.blue, fontWeight: FontWeight.w500),
-                      labelText: "Enter your url"),
-                ),
-              ],
-            ),
-          )),
-          actions: <Widget>[
-            TextButton(
-              child: const Text(
-                'Cancel',
-                style: TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 18),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget floatingActionButton(
-      {required BuildContext context,
-      required webviewHelper,
-      required FToast fToast,
-      PackageInfo? packageInfo,
-      String? env}) {
-    return ExpandableFab(
-      distance: 112,
-      children: [
-        ElevatedButton(
-          onPressed: () {
-            webviewHelper.handleCopy(fToast);
-          },
-          style: TextButton.styleFrom(backgroundColor: Colors.blue),
-          child: Text(
-            "Copy FCM Token",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            showEnterUrlDialog(context);
-          },
-          style: TextButton.styleFrom(backgroundColor: Colors.blue),
-          child: Text(
-            "Enter URL",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
   }
 }

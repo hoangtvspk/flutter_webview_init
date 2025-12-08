@@ -2,7 +2,7 @@ import 'package:webview_base/helpers/Themes.dart';
 import 'package:webview_base/helpers/icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../helpers/Strings.dart';
+import '../../helpers/Strings.dart';
 
 class NoInternetWidget extends StatefulWidget {
   final void Function() reload;
