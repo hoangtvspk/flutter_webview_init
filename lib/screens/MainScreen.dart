@@ -4,10 +4,18 @@ import 'package:app_links/app_links.dart';
 import 'package:webview_base/config/env_config.dart';
 import 'package:webview_base/helpers/Themes.dart';
 import 'package:webview_base/helpers/icons.dart';
+import 'package:webview_base/provider/webviewLoadingProvider.dart';
+import 'package:webview_base/widgets/splash_overlay/splash_overlay.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:version/version.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:provider/provider.dart';
 import 'package:provider/src/provider.dart';
 import '../provider/navigationBarProvider.dart';
 import '../provider/webViewControllerProvider.dart';
@@ -39,6 +47,10 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
   StreamSubscription<Uri>? _linkSubscription;
 
+  // Track app initialization state locally
+  bool _isAppInitialized = false;
+  bool _isUpdateRequired = false;
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +63,22 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
     initDeepLinks();
 
+    // Reset loading provider after build phase completes
+    // This ensures splash shows on initial load and hot reload
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final loadingProvider =
+            Provider.of<WebViewLoadingProvider>(context, listen: false);
+        // Only reset if not already initialized (for hot reload case)
+        // If already initialized and webview loaded, keep it hidden
+        if (!_isAppInitialized || loadingProvider.progress < 1.0) {
+          loadingProvider.reset();
+        }
+      }
+    });
+
+    _initializeApp();
+
     Future.delayed(Duration.zero, () {
       if (context.mounted) {
         context
@@ -58,6 +86,111 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
             .setAnimationController(navigationContainerAnimationController);
       }
     });
+  }
+
+  // Initialize app logic (moved from SplashScreen)
+  Future<void> _initializeApp() async {
+    try {
+      _isUpdateRequired = await _checkUpdateRequired();
+
+      SharedPreferences pref = await SharedPreferences.getInstance();
+      await FirebaseMessaging.instance.getAPNSToken();
+      var fcmToken = await FirebaseMessaging.instance.getToken();
+
+      if (fcmToken != null && pref.getString("fcmToken") == null) {
+        pref.setString("fcmToken", fcmToken);
+      }
+
+      print('--------fcmToken:$fcmToken');
+    } on Exception catch (e) {
+      print("get fcm err : =>>> $e");
+    }
+
+    // Mark app initialization as complete
+    setState(() {
+      _isAppInitialized = true;
+    });
+
+    // Update loading state based on initialization and webview progress
+    _updateSplashVisibility();
+
+    if (_isUpdateRequired && mounted) {
+      _showUpdateDialog(context);
+      return;
+    }
+  }
+
+  // Update splash visibility based on initialization and webview progress
+  void _updateSplashVisibility() {
+    final loadingProvider =
+        Provider.of<WebViewLoadingProvider>(context, listen: false);
+
+    // Hide splash only when ALL conditions are met:
+    // 1. App initialization is complete
+    // 2. WebView progress is 100%
+    // 3. Update is not required
+    if (_isAppInitialized &&
+        loadingProvider.progress >= 1.0 &&
+        !_isUpdateRequired) {
+      loadingProvider.setLoading(false);
+    } else {
+      loadingProvider.setLoading(true);
+    }
+  }
+
+  // Check update required when the version from Firebase Remote Config is greater than the current version
+  Future<bool> _checkUpdateRequired() async {
+    try {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      String currentVersion = packageInfo.version;
+      Version.parse(currentVersion); // Parse để validate version format
+      return false;
+    } catch (e) {
+      print(e);
+      return false;
+    }
+  }
+
+  // Show update dialog
+  Future<void> _showUpdateDialog(BuildContext context) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // user must tap button!
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('앱 업데이트 필요!'),
+          content: Text(
+            "EasySales의 새로운 버전이 출시되었습니다!\n지금 바로 업데이트하세요!",
+            style: TextStyle(fontSize: 13),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                '지금 업데이트',
+                style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16),
+              ),
+              onPressed: () async {
+                PackageInfo packageInfo = await PackageInfo.fromPlatform();
+                final Uri iosAppStoreUrl =
+                    Uri.parse("https://apps.apple.com/app/id6738642810");
+                final Uri androidPlayStoreUrl = Uri.parse(
+                    "https://play.google.com/store/apps/details?id=${packageInfo.packageName}");
+                if (Platform.isAndroid) {
+                  if (await canLaunchUrl(androidPlayStoreUrl)) {
+                    launchUrl(androidPlayStoreUrl);
+                  }
+                  return;
+                }
+                launchUrl(iosAppStoreUrl);
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> initDeepLinks() async {
@@ -80,7 +213,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
         Provider.of<WebViewControllerProvider>(context, listen: false);
     InAppWebViewController? webViewController = provider.controller;
 
-    if (webViewController != null && url != null) {
+    if (webViewController != null && url.isNotEmpty) {
       webViewController.loadUrl(
           urlRequest: URLRequest(url: WebUri.uri(Uri.parse(url))));
     }
@@ -124,16 +257,39 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
             bottom: Platform.isIOS ? false : false,
             child: Scaffold(
               extendBody: true,
-              body: Navigator(
-                key: _navigatorKeys[0],
-                onGenerateRoute: (routeSettings) {
-                  return MaterialPageRoute(
-                      builder: (_) => HomeScreen(
-                            widget.webUrl,
-                            windowId: widget.windowId,
-                            showDevToolButton: widget.showDevToolButton,
-                          ));
-                },
+              body: Stack(
+                children: [
+                  Navigator(
+                    key: _navigatorKeys[0],
+                    onGenerateRoute: (routeSettings) {
+                      return MaterialPageRoute(
+                          builder: (_) => HomeScreen(
+                                widget.webUrl,
+                                windowId: widget.windowId,
+                                showDevToolButton: widget.showDevToolButton,
+                              ));
+                    },
+                  ),
+                  // Splash screen overlay that hides when webview loads
+                  Consumer<WebViewLoadingProvider>(
+                    builder: (context, loadingProvider, child) {
+                      // Update splash visibility when progress changes
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          _updateSplashVisibility();
+                        }
+                      });
+
+                      return AnimatedOpacity(
+                        opacity: loadingProvider.isLoading ? 1.0 : 0.0,
+                        duration: Duration(milliseconds: 500),
+                        child: loadingProvider.isLoading
+                            ? SplashOverlay()
+                            : SizedBox.shrink(),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ),

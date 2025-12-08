@@ -1,36 +1,193 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'dart:io';
 
-const Map<String, Map<String, FirebaseOptions>> firebaseConfigs = {
-  'testing': {
-    'android': FirebaseOptions(
-      apiKey: 'AIzaSyAucfJrw3E3FaZZ0ScmlgJB64olBagfFEg',
-      appId: '1:539861984523:android:832fe560599991765d6e0e',
-      messagingSenderId: '539861984523',
-      projectId: 'ezsale-dev',
-      storageBucket: 'ezsale-dev.firebasestorage.app',
-    ),
-    'ios': FirebaseOptions(
-      apiKey: 'AIzaSyA3ZEz7F_Vo6CpDamTo-DnaJe2URnb4Dco',
-      appId: '1:539861984523:ios:89e4b4078ff89bc65d6e0e',
-      messagingSenderId: '539861984523',
-      projectId: 'ezsale-dev',
-      storageBucket: 'ezsale-dev.firebasestorage.app',
-    ),
-  },
-  'production': {
-    'android': FirebaseOptions(
-      apiKey: 'AIzaSyCbtSni-8lEdVAFxV0Me9dioi-XLvGQcnQ',
-      appId: '1:791650251315:android:6a41ed7443983d7e93e946',
-      messagingSenderId: '791650251315',
-      projectId: 'easysales-38bc2',
-      storageBucket: 'easysales-38bc2.firebasestorage.app',
-    ),
-    'ios': FirebaseOptions(
-      apiKey: 'AIzaSyD-g3gHAZ-mzrK3DQMKe9UdbUa15yT4KoE',
-      appId: '1:791650251315:ios:e06aa60014f4dce293e946',
-      messagingSenderId: '791650251315',
-      projectId: 'easysales-38bc2',
-      storageBucket: 'easysales-38bc2.firebasestorage.app',
-    ),
-  },
-};
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_base/constants/javascript.dart';
+import 'package:webview_base/firebase_options.dart';
+import 'package:webview_base/firebase_options_dev.dart';
+import 'package:webview_base/firebase_options_staging.dart';
+import 'package:webview_base/provider/webViewControllerProvider.dart';
+
+class FirebaseConfig {
+  FirebaseConfig._internal();
+  static final FirebaseConfig instance = FirebaseConfig._internal();
+
+  factory FirebaseConfig() {
+    return instance;
+  }
+
+  late AndroidNotificationChannel channel;
+  bool isFlutterLocalNotificationsInitialized = false;
+  late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
+  String? messId;
+
+  /// Initialize Firebase app with environment-specific options
+  static Future<void> initializeFirebaseApp(String environment) async {
+    await Firebase.initializeApp(
+      name: environment,
+      options: environment == 'dev'
+          ? DefaultFirebaseDevOptions.currentPlatform
+          : environment == 'staging'
+              ? DefaultFirebaseStagingOptions.currentPlatform
+              : DefaultFirebaseOptions.currentPlatform,
+    );
+    print('Firebase app initialized with environment: $environment');
+    print(
+        'Firebase app options  $environment => ${Firebase.app().options.appId}');
+  }
+
+  /// Initialize Firebase messaging and notifications
+  Future<void> initialize(BuildContext context) async {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      showFlutterNotification(context, message);
+    });
+    await setupInteractedMessage(context);
+
+    await setupFlutterNotifications(context);
+  }
+
+  /// Setup message interaction handlers
+  Future<void> setupInteractedMessage(BuildContext context) async {
+    // Get any messages which caused the application to open from
+    // a terminated state.
+    RemoteMessage? initialMessage =
+        await FirebaseMessaging.instance.getInitialMessage();
+
+    // If the message also contains a data property with a "type" of "chat",
+    // navigate to a chat screen
+    if (initialMessage != null) {
+      saveDeepLink(initialMessage);
+    }
+
+    // Also handle any interaction when the app is in the background via a
+    // Stream listener
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      onMessageOpenApp(context, message);
+    });
+  }
+
+  /// Handle message when app is opened from background
+  void onMessageOpenApp(BuildContext context, RemoteMessage message) async {
+    try {
+      final provider =
+          Provider.of<WebViewControllerProvider>(context, listen: false);
+      InAppWebViewController? webViewController = provider.controller;
+      if (webViewController == null) {
+        saveDeepLink(message);
+      } else {
+        if (message.data['redirectUrl'] != null) {
+          webViewController.evaluateJavascript(
+              source: navigate(message.data['redirectUrl']));
+        }
+      }
+    } catch (e) {
+      print("webViewController error => $e");
+    }
+  }
+
+  /// Save deep link from message
+  void saveDeepLink(RemoteMessage message) async {
+    SharedPreferences pref = await SharedPreferences.getInstance();
+    if (message.data['redirectUrl'] != null) {
+      pref.setString("deepLink", message.data['redirectUrl']);
+    }
+  }
+
+  /// Setup Flutter local notifications
+  Future<void> setupFlutterNotifications(BuildContext context) async {
+    if (Platform.isIOS) {
+      await FirebaseMessaging.instance.getAPNSToken();
+    }
+
+    channel = const AndroidNotificationChannel(
+      'high_importance_channel',
+      'High Importance Notifications',
+      description: 'This channel is used for important notifications.',
+      importance: Importance.high,
+    );
+
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings iosInitializationSettings =
+        DarwinInitializationSettings();
+
+    final InitializationSettings initializationSettings =
+        InitializationSettings(
+            android: initializationSettingsAndroid,
+            iOS: iosInitializationSettings);
+
+    flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+    await flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        handleNotificationTap(context, response);
+      },
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+      alert: false,
+      badge: true,
+      sound: false,
+    );
+    isFlutterLocalNotificationsInitialized = true;
+  }
+
+  /// Handle notification tap
+  void handleNotificationTap(
+      BuildContext context, NotificationResponse response) {
+    if (response.payload != null) {
+      // Handle the action, like navigating to a specific screen
+      print('Notification payload: ${response.payload}');
+      try {
+        final provider =
+            Provider.of<WebViewControllerProvider>(context, listen: false);
+        provider.handleNotification(response.payload ?? '');
+      } catch (e) {
+        print("err => $e");
+      }
+      // Navigate to a specific screen or perform some action based on the payload
+    }
+  }
+
+  /// Show Flutter notification
+  void showFlutterNotification(
+      BuildContext context, RemoteMessage message) async {
+    RemoteNotification? notification = message.notification;
+    if (messId == message.messageId) {
+      return;
+    }
+    final provider =
+        Provider.of<WebViewControllerProvider>(context, listen: false);
+    InAppWebViewController? webViewController = provider.controller;
+    WebUri? webUri = await webViewController?.getUrl();
+    Uri? uri = webUri?.uriValue;
+    if (notification != null &&
+        Uri.parse(message.data['redirectUrl']).queryParameters['id'] !=
+            uri?.queryParameters['id']) {
+      print('show notification');
+      flutterLocalNotificationsPlugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          NotificationDetails(
+              android: AndroidNotificationDetails(channel.id, channel.name,
+                  channelDescription: channel.description,
+                  icon: 'ic_noti_icon',
+                  color: Color(0xff2E2C2C)),
+              iOS: DarwinNotificationDetails()),
+          payload: message.data['redirectUrl']);
+      messId = message.messageId;
+    }
+  }
+}

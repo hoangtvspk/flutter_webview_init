@@ -1,12 +1,15 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "app.base.webview_base"
+    namespace = "app.base.webview"
     compileSdk = 36
     ndkVersion = "27.0.12077973"
 
@@ -22,7 +25,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "app.base.webview_base"
+        applicationId = "app.base.webview"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 23
@@ -47,7 +50,7 @@ android {
         }
         create("prod") {
             dimension = "environment"
-            // Không có suffix = base applicationId "app.base.webview_base"
+            // Không có suffix = base applicationId "app.base.webview"
             resValue("string", "app_name", "Webview Init")
         }
     }

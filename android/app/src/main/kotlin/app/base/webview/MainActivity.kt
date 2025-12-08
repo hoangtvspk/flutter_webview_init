@@ -1,4 +1,4 @@
-package app.base.webview_base
+package app.base.webview
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -26,6 +26,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../provider/navigationBarProvider.dart';
 import '../../helpers/Colors.dart';
 import '../../utils/webview.dart';
+import '../../provider/webviewLoadingProvider.dart';
 
 class WebViewContainer extends StatefulWidget {
   final String url;
@@ -440,6 +441,11 @@ class _WebViewContainerState extends State<WebViewContainer>
                                         onScrollChanged(y: y);
                                       },
                                       onLoadStart: (controller, url) async {
+                                        // Reset loading state when webview starts loading
+                                        Provider.of<WebViewLoadingProvider>(
+                                                context,
+                                                listen: false)
+                                            .reset();
                                         onLoadStart(
                                             controller: controller, url: url);
                                       },
@@ -558,6 +564,14 @@ class _WebViewContainerState extends State<WebViewContainer>
                                         setState(() {
                                           this.progress = progress / 100;
                                         });
+                                        // Notify loading provider
+                                        Provider.of<WebViewLoadingProvider>(
+                                                context,
+                                                listen: false)
+                                            .setProgress(progress / 100);
+
+                                        // Trigger splash visibility update in MainScreen
+                                        // This will be handled by Consumer's addPostFrameCallback
                                       },
                                       shouldOverrideUrlLoading:
                                           (controller, navigationAction) async {
@@ -687,31 +701,11 @@ class _WebViewContainerState extends State<WebViewContainer>
                               //             title2:
                               //                 CustomStrings.incorrectURL2))
                               //     : const SizedBox(height: 0, width: 0),
+                              // Loading overlay circle
                               progress < 1.0 && _validURL
-                                  ? SizeTransition(
-                                      sizeFactor: animation,
-                                      axis: Axis.horizontal,
-                                      child: Container(
-                                        width:
-                                            MediaQuery.of(context).size.width,
-                                        height: 5.0,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              Theme.of(context)
-                                                  .progressIndicatorTheme
-                                                  .color!,
-                                              Theme.of(context)
-                                                  .progressIndicatorTheme
-                                                  .refreshBackgroundColor!,
-                                              Theme.of(context)
-                                                  .progressIndicatorTheme
-                                                  .linearTrackColor!,
-                                            ],
-                                            stops: const [0.1, 1.0, 0.1],
-                                          ),
-                                        ),
-                                      ),
+                                  ? _LoadingOverlay(
+                                      progress: progress,
+                                      animation: animation,
                                     )
                                   : const SizedBox.shrink(),
                             ],
@@ -720,5 +714,89 @@ class _WebViewContainerState extends State<WebViewContainer>
             )
           ],
         ));
+  }
+}
+
+// Loading overlay with circle indicator
+class _LoadingOverlay extends StatelessWidget {
+  final double progress;
+  final Animation<double> animation;
+
+  const _LoadingOverlay({
+    required this.progress,
+    required this.animation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
+      color: Colors.black.withOpacity(0.4),
+      child: Center(
+        child: Container(
+          width: 90,
+          height: 90,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xff5A4FF3).withOpacity(0.3),
+                blurRadius: 15,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Outer progress circle
+              SizedBox(
+                width: 80,
+                height: 80,
+                child: CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 5,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Color(0xff5A4FF3),
+                  ),
+                  backgroundColor: Colors.grey[100],
+                ),
+              ),
+              // Inner pulsing circle with gradient
+              AnimatedBuilder(
+                animation: animation,
+                builder: (context, child) {
+                  return Container(
+                    width: 45 + (animation.value * 8),
+                    height: 45 + (animation.value * 8),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          Color(0xff5A4FF3)
+                              .withOpacity(0.4 - (animation.value * 0.2)),
+                          Color(0xff02D3AE)
+                              .withOpacity(0.2 - (animation.value * 0.1)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // Center progress text
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xff5A4FF3),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

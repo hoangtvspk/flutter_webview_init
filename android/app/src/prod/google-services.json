@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "990011744960",
+    "project_id": "init-webview-prod",
+    "storage_bucket": "init-webview-prod.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:990011744960:android:7ba2e9f5b9c0d7c01d0325",
+        "android_client_info": {
+          "package_name": "app.base.webview"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrVU09vqPJY7eehMmGk67TYcfLE9S-FgE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

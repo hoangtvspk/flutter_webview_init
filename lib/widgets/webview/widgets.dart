@@ -14,7 +14,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../../provider/appGlobalKey.dart';
-import '../../screens/SplashScreen.dart';
 import '../ExpandingActionButton.dart';
 
 class WebviewWidgets {
@@ -328,23 +327,6 @@ class WebviewWidgets {
               ),
               onPressed: () {
                 Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text(
-                'Go!',
-                style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 18),
-              ),
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.of(context).pop();
-                  EnvConfig.initialize(textEditingController.text);
-                  navigatorKey.currentState!.pushReplacement(
-                      MaterialPageRoute(builder: (_) => SplashScreen()));
-                }
               },
             ),
           ],

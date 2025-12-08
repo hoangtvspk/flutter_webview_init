@@ -106,6 +106,9 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    - lib/config/.env.dev
+    - lib/config/.env.staging
+    - lib/config/.env.prod
   fonts:
     - family: SegUI
       fonts:
