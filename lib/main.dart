@@ -10,15 +10,17 @@ import 'package:webview_base/config/env_config.dart';
 import 'package:webview_base/config/firebase_config.dart';
 import 'package:webview_base/provider/app_global_key.dart';
 import 'package:webview_base/provider/webview_provider.dart';
-import 'package:webview_base/utils/permission.dart';
 
 import 'provider/navigation_bar_provider.dart';
 import 'constants/common.dart';
 import 'provider/saved_cookie_provider.dart';
+import 'provider/download_provider.dart';
 import 'provider/theme_provider.dart';
 
 import 'screens/main_screen.dart';
 import 'services/cookies/cookies_services.dart';
+import 'services/permission/permission_service.dart';
+import 'widgets/common/download_snackbar.dart';
 
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
@@ -46,8 +48,9 @@ Future main() async {
     // Register background message handler (must be top-level function)
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-    // await RemoteConfigManager().initialize();
-    await activeRequestPermissionFCM();
+    // Request notification permission
+    final permissionService = PermissionService();
+    await permissionService.requestNotificationPermission();
   } on Exception catch (e) {
     print(e);
   }
@@ -58,6 +61,7 @@ Future main() async {
           create: (_) => NavigationBarProvider()),
       ChangeNotifierProvider(create: (context) => WebViewProvider()),
       ChangeNotifierProvider(create: (context) => SavedCookieProvider()),
+      ChangeNotifierProvider(create: (context) => DownloadProvider()),
     ],
     builder: ((providerContext, child) {
       return MyApp();
@@ -101,6 +105,8 @@ class _MyAppState extends State<MyApp> {
         theme: AppThemes.lightTheme,
         navigatorKey: navigatorKey,
         onGenerateRoute: null,
-        home: MyHomePage());
+        home: DownloadSnackBar(
+          child: MyHomePage(),
+        ));
   }
 }

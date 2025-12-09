@@ -182,36 +182,36 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
             context.read<NavigationBarProvider>().animationController.reverse(),
         child: Container(
           color: Colors.white,
-          child: SafeArea(
-            top: Platform.isIOS ? true : true,
-            bottom: Platform.isIOS ? false : false,
-            child: Scaffold(
-              extendBody: true,
-              body: Consumer<WebViewProvider>(
-                builder: (context, loadingProvider, child) {
-                  // Update splash visibility when progress changes
-                  bool isLoaded = _isAppInitialized &&
-                      loadingProvider.progress >= 1.0 &&
-                      !_isUpdateRequired;
+          child: Scaffold(
+            extendBody: true,
+            body: Consumer<WebViewProvider>(
+              builder: (context, loadingProvider, child) {
+                // Update splash visibility when progress changes
+                bool isLoaded = _isAppInitialized &&
+                    loadingProvider.progress >= 1.0 &&
+                    !_isUpdateRequired;
 
-                  // Handle delay before hiding splash
-                  if (isLoaded && !_shouldHideSplash) {
-                    _splashHideTimer?.cancel();
-                    _splashHideTimer =
-                        Timer(const Duration(milliseconds: 500), () {
-                      if (mounted) {
-                        setState(() {
-                          _shouldHideSplash = true;
-                        });
-                      }
-                    });
-                  } else if (!isLoaded && _shouldHideSplash) {
-                    // Reset flag when loading again
-                    _splashHideTimer?.cancel();
-                    _shouldHideSplash = false;
-                  }
+                // Handle delay before hiding splash
+                if (isLoaded && !_shouldHideSplash) {
+                  _splashHideTimer?.cancel();
+                  _splashHideTimer =
+                      Timer(const Duration(milliseconds: 500), () {
+                    if (mounted) {
+                      setState(() {
+                        _shouldHideSplash = true;
+                      });
+                    }
+                  });
+                } else if (!isLoaded && _shouldHideSplash) {
+                  // Reset flag when loading again
+                  _splashHideTimer?.cancel();
+                  _shouldHideSplash = false;
+                }
 
-                  return Stack(
+                return SafeArea(
+                  top: isLoaded && _shouldHideSplash,
+                  bottom: false,
+                  child: Stack(
                     children: [
                       Opacity(
                         opacity: isLoaded ? 1.0 : 0.0,
@@ -232,9 +232,9 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                       ),
                       // Splash screen overlay that hides when webview loads
                     ],
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ),

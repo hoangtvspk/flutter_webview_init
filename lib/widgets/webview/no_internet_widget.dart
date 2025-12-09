@@ -50,49 +50,45 @@ class _NoInternetWidgetState extends State<NoInternetWidget> {
             height: 16,
           ),
           Text(
-            CustomStrings.noInternet1,
+            'No internet connection',
             style: TextStyle(
                 fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black),
           ),
           Text(
-            CustomStrings.noInternet2,
+            'Please check your internet connection and try again.',
             style: TextStyle(fontSize: 14, color: Color(0xff646464)),
           ),
           SizedBox(
             height: 16,
           ),
-          _isLoading
-              ? CircularProgressIndicator(
-                  color: Theme.of(context).primaryColor,
-                )
-              : TextButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    backgroundColor: Color(0xff5A4FF3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(4), // Set your desired radius
-                    ),
-                    minimumSize: Size(100, 40),
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _isLoading = true;
-                    });
+          TextButton(
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              backgroundColor: Color(0xff5A4FF3),
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(4), // Set your desired radius
+              ),
+              minimumSize: Size(100, 40),
+            ),
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+              });
 
-                    Future.delayed(const Duration(seconds: 3), () {
-                      setState(() {
-                        _isLoading = false;
-                      });
-                    });
-                    widget.reload();
-                  },
-                  child: const Text(
-                    '다시 시도하기',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w500),
-                  ),
-                )
+              Future.delayed(const Duration(seconds: 3), () {
+                setState(() {
+                  _isLoading = false;
+                });
+              });
+              widget.reload();
+            },
+            child: const Text(
+              'Retry',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+          )
         ],
       ),
     );

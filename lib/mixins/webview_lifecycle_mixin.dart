@@ -11,16 +11,16 @@ import 'package:webview_base/provider/navigation_bar_provider.dart';
 import 'package:webview_base/provider/webview_provider.dart';
 import 'package:webview_base/repositories/auth_repository.dart';
 import 'package:webview_base/services/cookies/cookies_services.dart';
-import 'package:webview_base/services/js_communication_service.dart';
+import 'package:webview_base/services/js/js_communication_service.dart';
+import 'package:webview_base/provider/download_provider.dart';
+import 'package:webview_base/services/permission/permission_service.dart';
+import 'package:webview_base/widgets/webview/webview_window.dart';
 
 /// Mixin for WebView lifecycle event handlers
 /// Contains business logic for WebView events: onWebViewCreated, onLoadStart, onLoadStop, etc.
 ///
 /// This separates lifecycle handling from UI code
 mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
-  final AuthRepository _authRepository = AuthRepository();
-  final CookieManager _cookieManager = CookieManager.instance();
-  final WebViewHelper _webViewHelper = WebViewHelper();
   final String _webViewUrl = EnvConfig.instance.webviewUrl;
 
   // ==================== State Variables ====================
@@ -78,24 +78,26 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
             {required String name, required String url, String? base64Str})
         onDownload,
     required Function(InAppWebViewController) onControllerInitialized,
+    required CookieManager cookieManager,
+    required AuthRepository authRepository,
   }) async {
     onControllerInitialized(controller);
     setController(controller: controller);
 
-    await restoreCookies(_webViewUrl, _cookieManager);
+    await restoreCookies(_webViewUrl, cookieManager);
 
     JsCommunicationService.defineRouteChangeFunction(
       controller: controller,
       // ignore: use_build_context_synchronously
       context: context,
-      authRepository: _authRepository,
-      cookieManager: _cookieManager,
+      authRepository: authRepository,
+      cookieManager: cookieManager,
       webViewUrl: _webViewUrl,
     );
 
     await markAccessByWebview(
       webViewUrl: _webViewUrl,
-      cookieManager: _cookieManager,
+      cookieManager: cookieManager,
     );
 
     await JsCommunicationService.handlePostMessage(
@@ -144,11 +146,12 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
     required InAppWebViewController? webViewController,
     required VoidCallback onUpdate,
     required PullToRefreshController? pullToRefreshController,
+    required WebViewHelper webViewHelper,
   }) async {
     if (webViewController != null) {
       Uri? uri = url?.uriValue;
       if (uri != null) {
-        await _webViewHelper.handleDeepLink(
+        await webViewHelper.handleDeepLink(
           webViewController: webViewController,
           path: uri.path + (uri.hasQuery ? '?${uri.query}' : ''),
         );
@@ -172,7 +175,8 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
   // ==================== Navigation Policy ====================
   // Get navigation action policy for specific URLs
   // Handles OAuth redirects, intent URLs, and custom schemes
-  Future<NavigationActionPolicy> getNavigationPolicy(WebUri? uri) async {
+  Future<NavigationActionPolicy> getNavigationPolicy(
+      WebUri? uri, WebViewHelper webViewHelper) async {
     // Handle OAuth URLs (Google, Kakao, Naver)
     if (uri != null &&
         (uri
@@ -211,13 +215,13 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
     if (uri.toString().contains("intent:")) {
       try {
         Uri appUri = Uri.parse(
-            _webViewHelper.convertAndAdjustUrl(uri.toString()).toString());
+            webViewHelper.convertAndAdjustUrl(uri.toString()).toString());
         if (await canLaunchUrl(appUri)) {
           await launchUrl(appUri,
               mode: LaunchMode.externalNonBrowserApplication);
         } else {
           // Try to open Play Store if app is not installed
-          String? package = _webViewHelper.getIntentPackage(uri.toString());
+          String? package = webViewHelper.getIntentPackage(uri.toString());
           if (package != null &&
               await canLaunchUrl(Uri.parse(
                   "https://play.google.com/store/apps/details?id=$package"))) {
@@ -254,7 +258,6 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
     }) onUpdateState,
   }) async {
     pullToRefreshController?.endRefreshing();
-    print("onReceivedError ${error.description}");
 
     onUpdateState(progress: 1);
 
@@ -267,26 +270,22 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
           urlRequest: URLRequest(url: WebUri.uri(Uri.parse(_webViewUrl))));
       return;
     }
+    print("onReceivedError ${error.description}");
+    if (error.description == "net::ERR_NAME_NOT_RESOLVED") {
+      onUpdateState(showNoInternet: true, noInternet: true);
+      return;
+    }
 
     // Handle unsupported URL on iOS
     if (Platform.isIOS &&
         error.description == 'unsupported URL' &&
         WebViewHelper.isNonWebsiteUrl(uri.toString())) {
-      // This should be handled by navigation mixin or helper,
-      // but for now we'll use the callback or helper directly if possible.
-      // Since we need to call handleNonWebsiteUrl which is in NavigationMixin,
-      // we might need to delegate this back or assume the mixin is present.
-      // For now, we'll assume the caller handles the navigation logic if we return,
-      // but here we need to execute it.
-      // Since we can't easily call NavigationMixin methods here without casting,
-      // we'll rely on the helper.
-
       if (await canLaunchUrl(uri)) {
         print("launch unsupport url $uri");
         await launchUrl(uri);
       } else {
         webViewController?.stopLoading();
-        onShowError("앱이 설치되어 있지 않습니다.");
+        onShowError("The website is not available.");
       }
       return;
     }
@@ -324,5 +323,93 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
   /// Handle console messages
   void onConsoleMessage(ConsoleMessage message) {
     print('------console-log: ${message.message}');
+  }
+
+  // ==================== Download Handling ====================
+
+  /// Handle download start request from WebView
+  Future<void> onDownloadStartRequest({
+    required DownloadStartRequest request,
+    required Function({bool? isLoading, double? progress}) onUpdateState,
+  }) async {
+    onUpdateState(isLoading: false, progress: 1);
+
+    final permissionService = PermissionService();
+    final hasPermission = await permissionService.requestStoragePermission();
+
+    if (hasPermission) {
+      String url = request.url.toString();
+      String fileName = request.suggestedFilename.toString();
+
+      final downloadProvider =
+          Provider.of<DownloadProvider>(context, listen: false);
+      await downloadProvider.startDownload(
+        url: url,
+        name: fileName,
+      );
+    } else {
+      await permissionService.openAppSettings();
+    }
+  }
+
+  // ==================== Create Window ====================
+
+  /// Handle create window request (popups)
+  Future<bool> onCreateWindow({
+    required CreateWindowAction createWindowRequest,
+    required WebviewWindow webviewWindow,
+    required bool isOpenDialog,
+    required bool isNewWindowLoading,
+    required bool allowClosePopUp,
+    required BuildContext? dialogContext,
+    required String url,
+    required InAppWebViewSettings options,
+    required Function(bool isOpenDialog) setIsOpenDialog,
+    required Function(bool isNewWindowLoading) setIsNewWindowLoading,
+    required Function(bool allowClosePopUp) setAllowClosePopUp,
+  }) async {
+    final webUri = createWindowRequest.request.url;
+
+    // Check for file extensions
+    if (webUri.toString().contains(
+        RegExp(r'\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|txt|csv)$'))) {
+      print("downloading file");
+      // Prevent the webview from loading the URL
+      return false;
+    }
+
+    // Check for OAuth URLs
+    if (webUri != null &&
+        (webUri
+                .toString()
+                .contains("https://accounts.google.com/o/oauth2/v2/auth") ||
+            webUri
+                .toString()
+                .contains("https://kauth.kakao.com/oauth/authorize") ||
+            webUri
+                .toString()
+                .contains("https://nid.naver.com/oauth2.0/authorize"))) {
+      return false;
+    }
+
+    if (Platform.isAndroid) {
+      return false;
+    }
+
+    print('onCreateWindow $webUri');
+    webviewWindow.createWindow(
+        windowId: createWindowRequest.windowId,
+        isOpenDialog: isOpenDialog,
+        isNewWindowLoading: isNewWindowLoading,
+        allowClosePopUp: allowClosePopUp,
+        setIsOpenDialog: setIsOpenDialog,
+        setIsNewWindowLoading: setIsNewWindowLoading,
+        setAllowClosePopUp: setAllowClosePopUp,
+        context: context,
+        dialogContext: dialogContext,
+        url: url,
+        options: options,
+        webinitialUrl: _webViewUrl);
+    return true;
   }
 }

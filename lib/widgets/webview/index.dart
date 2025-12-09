@@ -9,10 +9,11 @@ import 'package:provider/provider.dart';
 import 'package:webview_base/config/env_config.dart';
 import 'package:webview_base/config/webview_config.dart';
 import 'package:webview_base/helpers/Colors.dart';
-import 'package:webview_base/mixins/webview_download_mixin.dart';
+import 'package:webview_base/helpers/webview_helper.dart';
 import 'package:webview_base/mixins/webview_lifecycle_mixin.dart';
-import 'package:webview_base/mixins/webview_navigation_mixin.dart';
 import 'package:webview_base/provider/webview_provider.dart';
+import 'package:webview_base/provider/download_provider.dart';
+import 'package:webview_base/repositories/auth_repository.dart';
 import 'package:webview_base/widgets/webview/dev_tool_button.dart';
 import 'package:webview_base/widgets/webview/not_found.dart';
 import 'package:webview_base/widgets/webview/webview_window.dart';
@@ -28,11 +29,7 @@ class WebViewContainer extends StatefulWidget {
 }
 
 class _WebViewContainerState extends State<WebViewContainer>
-    with
-        SingleTickerProviderStateMixin,
-        WebViewLifecycleMixin,
-        WebViewDownloadMixin,
-        WebViewNavigationMixin {
+    with WebViewLifecycleMixin {
   // Progress States
   double _progress = 0;
   String _currentUrl = '';
@@ -56,6 +53,8 @@ class _WebViewContainerState extends State<WebViewContainer>
   final WebviewWindow _webviewWindow = WebviewWindow();
   final _keepAlive = InAppWebViewKeepAlive();
   final InAppWebViewSettings _options = WebViewConfig.getDefaultSettings();
+  final WebViewHelper _webViewHelper = WebViewHelper();
+  final AuthRepository _authRepository = AuthRepository();
 
   InAppWebViewController? _webViewController;
   BuildContext? _dialogContext;
@@ -136,8 +135,22 @@ class _WebViewContainerState extends State<WebViewContainer>
                                   _webViewController = controller;
                                   await onWebViewCreated(
                                     controller: controller,
-                                    onDownload: handleDownload,
+                                    onDownload: (
+                                        {required String name,
+                                        required String url,
+                                        String? base64Str}) async {
+                                      final downloadProvider =
+                                          Provider.of<DownloadProvider>(context,
+                                              listen: false);
+                                      await downloadProvider.startDownload(
+                                        url: url,
+                                        name: name,
+                                        base64Str: base64Str,
+                                      );
+                                    },
                                     onControllerInitialized: (c) {},
+                                    cookieManager: CookieManager.instance(),
+                                    authRepository: _authRepository,
                                   );
                                 },
                                 onScrollChanged: (controller, x, y) async {
@@ -177,6 +190,7 @@ class _WebViewContainerState extends State<WebViewContainer>
                                         }
                                       });
                                     },
+                                    webViewHelper: _webViewHelper,
                                   );
                                 },
                                 onReceivedError: (
@@ -191,7 +205,12 @@ class _WebViewContainerState extends State<WebViewContainer>
                                     pullToRefreshController:
                                         _pullToRefreshController,
                                     webViewController: _webViewController,
-                                    onShowError: showSnackBarErr,
+                                    onShowError: (error) {
+                                      final downloadProvider =
+                                          Provider.of<DownloadProvider>(context,
+                                              listen: false);
+                                      downloadProvider.showError(error);
+                                    },
                                     onUpdateState: ({
                                       progress,
                                       showNoInternet,
@@ -261,11 +280,12 @@ class _WebViewContainerState extends State<WebViewContainer>
                                 shouldOverrideUrlLoading:
                                     (controller, navigationAction) async {
                                   return super.getNavigationPolicy(
-                                      navigationAction.request.url);
+                                      navigationAction.request.url,
+                                      _webViewHelper);
                                 },
                                 onCreateWindow:
                                     (controller, createWindowRequest) async {
-                                  return handleCreateWindow(
+                                  return super.onCreateWindow(
                                     createWindowRequest: createWindowRequest,
                                     webviewWindow: _webviewWindow,
                                     isOpenDialog: _isOpenDialog,
@@ -284,7 +304,7 @@ class _WebViewContainerState extends State<WebViewContainer>
                                 },
                                 onDownloadStartRequest:
                                     (controller, downloadStartRequest) async {
-                                  await onDownloadStartRequest(
+                                  await super.onDownloadStartRequest(
                                     request: downloadStartRequest,
                                     onUpdateState: ({isLoading, progress}) {
                                       setState(() {
