@@ -1,161 +1,84 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-// ignore: implementation_imports
-import 'package:provider/src/provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_base/config/env_config.dart';
-import 'package:webview_base/provider/webViewControllerProvider.dart';
-import 'package:webview_base/provider/webviewURLProvider.dart';
+import 'package:webview_base/config/webview_config.dart';
+import 'package:webview_base/helpers/Colors.dart';
+import 'package:webview_base/mixins/webview_download_mixin.dart';
+import 'package:webview_base/mixins/webview_lifecycle_mixin.dart';
+import 'package:webview_base/mixins/webview_navigation_mixin.dart';
+import 'package:webview_base/provider/webview_provider.dart';
+import 'package:webview_base/widgets/webview/dev_tool_button.dart';
 import 'package:webview_base/widgets/webview/not_found.dart';
 import 'package:webview_base/widgets/webview/webview_window.dart';
 
-import '../../constants/javascript.dart';
-import '../../helpers/Colors.dart';
-import '../../models/web_post_message.dart';
-import '../../provider/navigationBarProvider.dart';
-import '../../provider/webviewLoadingProvider.dart';
-import '../../utils/permission.dart';
-import '../../utils/webview.dart';
 import 'loading_overlay.dart';
 import 'no_internet_widget.dart';
 
 class WebViewContainer extends StatefulWidget {
-  final String url;
-  final bool webUrl;
-  final int? windowId;
-  final bool showDevToolButton;
-
-  const WebViewContainer(
-      {required this.url,
-      required this.webUrl,
-      this.windowId,
-      this.showDevToolButton = false,
-      super.key});
+  const WebViewContainer({super.key});
 
   @override
   State<WebViewContainer> createState() => _WebViewContainerState();
 }
 
 class _WebViewContainerState extends State<WebViewContainer>
-    with SingleTickerProviderStateMixin {
-  double progress = 0;
-  double windowprogress = 0;
-  int _previousScrollY = 0;
+    with
+        SingleTickerProviderStateMixin,
+        WebViewLifecycleMixin,
+        WebViewDownloadMixin,
+        WebViewNavigationMixin {
+  // Progress States
+  double _progress = 0;
+  String _currentUrl = '';
 
-  String inititalDeeplink = '';
-  String url = '';
-  String downdloadPercent = '0';
+  // Error States
+  bool _showErrorPage = false;
+  bool _slowInternetPage = false;
+  bool _noInternet = false;
+  bool _showNoInternet = false;
+  bool _isValidURL = false;
 
-  bool isLoading = false;
-  bool isNewWindowLoading = false;
-  bool showErrorPage = false;
-  bool slowInternetPage = false;
-  bool noInternet = false;
-  bool showNoInternet = false;
-  bool isOpenDialog = false;
-  bool _validURL = false;
-  bool canGoBack = false;
+  // Dialog States
+  bool _isDialogLoading = false;
+  bool _isOpenDialog = false;
+  bool _allowClosePopUp = true;
 
-  late AnimationController animationController;
-  late Animation<double> animation;
-  late FToast fToast;
   late PullToRefreshController _pullToRefreshController;
 
-  final bool _allowClosePopUp = true;
-  final expiresDate =
-      DateTime.now().add(const Duration(days: 7)).millisecondsSinceEpoch;
+  final String _initialUrl = EnvConfig.instance.webviewUrl;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final GlobalKey webViewKey = GlobalKey();
-  final WebviewUtils webviewUtils = WebviewUtils();
-  final env = EnvConfig.instance;
+  final WebviewWindow _webviewWindow = WebviewWindow();
+  final _keepAlive = InAppWebViewKeepAlive();
+  final InAppWebViewSettings _options = WebViewConfig.getDefaultSettings();
 
-  PackageInfo? packageInfo;
-  WebviewWindow webviewWindow = WebviewWindow();
-  CookieManager cookieManager = CookieManager.instance();
-  InAppWebViewController? webViewController;
-  BuildContext? dialogContext;
-  final keepAlive = InAppWebViewKeepAlive();
-
-  InAppWebViewSettings options = InAppWebViewSettings(
-      useShouldOverrideUrlLoading: true,
-      mediaPlaybackRequiresUserGesture: false,
-      useOnDownloadStart: true,
-      javaScriptEnabled: true,
-      javaScriptCanOpenWindowsAutomatically: true,
-      cacheEnabled: false,
-      isInspectable: true,
-      clearCache: false,
-      supportZoom: true,
-      preferredContentMode: UserPreferredContentMode.MOBILE,
-      // userAgent: "random",
-      verticalScrollBarEnabled: false,
-      horizontalScrollBarEnabled: false,
-      transparentBackground: true,
-      allowFileAccessFromFileURLs: true,
-      allowUniversalAccessFromFileURLs: true,
-      thirdPartyCookiesEnabled: true,
-      allowFileAccess: true,
-      supportMultipleWindows: Platform.isIOS,
-      allowsInlineMediaPlayback: true);
+  InAppWebViewController? _webViewController;
+  BuildContext? _dialogContext;
 
   @override
   void initState() {
     super.initState();
 
-    invalidUrl();
-    initFToast();
-    getPackageInfo();
-    initPullToRequest();
-    initAnimation();
+    _isValidURL = validateUrl(_initialUrl);
+    _initPullToRequest();
   }
 
-  @override
-  void dispose() {
-    animationController.dispose();
-    webViewController = null;
-    super.dispose();
-  }
-
-  void invalidUrl() {
-    _validURL = Uri.tryParse(widget.url)?.isAbsolute ?? false;
-  }
-
-  void initFToast() {
-    fToast = FToast();
-    fToast.init(context);
-  }
-
-  void getPackageInfo() async {
-    PackageInfo getPackageInfo = await PackageInfo.fromPlatform();
-    SharedPreferences pref = await SharedPreferences.getInstance();
-    setState(() {
-      packageInfo = getPackageInfo;
-      inititalDeeplink = pref.getString("deepLink") ?? '';
-    });
-  }
-
-  void initPullToRequest() {
+  void _initPullToRequest() {
     try {
       _pullToRefreshController = PullToRefreshController(
         settings: PullToRefreshSettings(color: primaryColor),
         onRefresh: () async {
           if (Platform.isAndroid) {
-            webViewController!.reload();
+            _webViewController!.reload();
           } else if (Platform.isIOS) {
-            webViewController!.loadUrl(
-                urlRequest: URLRequest(url: await webViewController!.getUrl()));
+            _webViewController!.loadUrl(
+                urlRequest:
+                    URLRequest(url: await _webViewController!.getUrl()));
           }
         },
       );
@@ -164,226 +87,10 @@ class _WebViewContainerState extends State<WebViewContainer>
     }
   }
 
-  void initAnimation() {
-    animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
-    animation = Tween(begin: 0.0, end: 1.0).animate(animationController)
-      ..addListener(() {});
-  }
-
-  void setController({required InAppWebViewController controller}) {
-    Provider.of<WebViewControllerProvider>(context, listen: false)
-        .setController(controller);
-  }
-
-  void defineRouteChangeFunction() {
-    webViewController?.addJavaScriptHandler(
-        handlerName: "onRouteChanged",
-        callback: (args) {
-          String currentUrl = args[0];
-          print("SPA navigated to: $currentUrl");
-          webviewUtils.getUserId(
-              cookieManager: cookieManager,
-              url: widget.url,
-              name: "USER_INFOR");
-          context.read<WebviewURLProvider>().setCurrentURL(currentUrl);
-          if (isOpenDialog == true && dialogContext != null) {
-            Navigator.of(dialogContext!).pop();
-          }
-        });
-  }
-
-  void setupCookie() async {
-    await cookieManager.setCookie(
-      url: WebUri.uri(Uri.parse(widget.url)),
-      name: "webview",
-      value: '{"platform": "${Platform.isIOS ? "iOS" : "android"}"}',
-      expiresDate: expiresDate,
-      isHttpOnly: false,
-      isSecure: false,
-    );
-  }
-
-  void handlePostMessage({required InAppWebViewController controller}) async {
-    print("SHARING");
-    if (defaultTargetPlatform != TargetPlatform.android ||
-        await WebViewFeature.isFeatureSupported(
-            WebViewFeature.WEB_MESSAGE_LISTENER)) {
-      await controller.addWebMessageListener(WebMessageListener(
-        jsObjectName: "webviewListener",
-        onPostMessage: (message, sourceOrigin, isMainFrame, replyProxy) {
-          print("message: $message");
-          if (message != null && message.data != null) {
-            dynamic postedMessage =
-                WebPostMessage.fromJson(jsonDecode(message.data.toString()));
-            print('message: ${postedMessage.type}');
-            if (postedMessage.type == 'share') {
-              Share.share(postedMessage.messageData?.url ?? '',
-                  subject: postedMessage.messageData?.title ?? '');
-            } else if (postedMessage.type == 'contacts') {
-              getContacts(controller: controller);
-            } else if (postedMessage.type == 'download-template-base64') {
-              webviewUtils.handleDownload(
-                  name: postedMessage.messageData?.url ?? '',
-                  url: postedMessage.messageData?.title ?? '',
-                  context: context,
-                  base64Str: postedMessage.messageData?.title ?? '');
-            }
-          }
-        },
-      ));
-    }
-  }
-
-  void getContacts({required InAppWebViewController controller}) async {
-    try {
-      print('Requesting contacts permission...');
-      final statusBefore = await Permission.contacts.status;
-      print('Status before: $statusBefore');
-
-      final permissionStatus = await Permission.contacts.request();
-      print('Permission status: $permissionStatus');
-
-      if (permissionStatus == PermissionStatus.permanentlyDenied) {
-        controller!
-            .evaluateJavascript(source: handleException("Access denied"));
-        print('contacts permission denied');
-        if (statusBefore == PermissionStatus.denied) {
-        } else {
-          openAppSettings();
-        }
-      } else if (permissionStatus == PermissionStatus.granted) {
-        print('Permission granted, fetching contacts...');
-        final contacts =
-            await FlutterContacts.getContacts(withProperties: true);
-        print('Contacts found: ${contacts.length}');
-
-        // Convert contacts to JSON format
-        List<Map<String, dynamic>> contactsJson = [];
-        for (var contact in contacts) {
-          // Get all phone numbers for this contact
-          var phones = contact.phones;
-
-          if (phones.isEmpty) {
-            // If contact has no phone numbers, add it as is
-            contactsJson.add({
-              'name': contact.displayName,
-              'tel': '',
-              'id': contact.id,
-            });
-          } else {
-            // For each phone number, create a separate entry
-            for (var phone in phones) {
-              contactsJson.add({
-                'name': contact.displayName,
-                'tel': phone.number,
-                'id': '${contact.id} ${phone.number}',
-              });
-            }
-          }
-        }
-
-        print('Final JSON to send: $contactsJson');
-        // Convert to JSON string and send to webview
-        String jsonString = jsonEncode(contactsJson);
-        // Escape the JSON string for JavaScript
-        jsonString = jsonString.replaceAll("'", "\\'");
-        controller!.evaluateJavascript(source: setContacts(jsonString));
-      } else if (statusBefore == PermissionStatus.denied &&
-          Platform.isAndroid) {
-        controller!
-            .evaluateJavascript(source: handleException("Access denied"));
-        print('contacts permission denied');
-      }
-    } catch (e) {
-      print('Error in getContacts: $e');
-      print('Error stack trace: ${StackTrace.current}');
-    }
-  }
-
-  void onScrollChanged({required int y}) {
-    try {
-      int currentScrollY = y;
-      if (currentScrollY > _previousScrollY) {
-        _previousScrollY = currentScrollY;
-        if (!context
-            .read<NavigationBarProvider>()
-            .animationController
-            .isAnimating) {
-          context.read<NavigationBarProvider>().animationController.forward();
-        }
-      } else {
-        _previousScrollY = currentScrollY;
-
-        if (!context
-            .read<NavigationBarProvider>()
-            .animationController
-            .isAnimating) {
-          context.read<NavigationBarProvider>().animationController.reverse();
-        }
-      }
-    } catch (e) {
-      print(e);
-    }
-  }
-
-  void onWebViewCreated({required InAppWebViewController controller}) {
-    webViewController = controller;
-
-    setController(controller: controller);
-
-    webviewUtils.restoreCookies(widget.url, cookieManager);
-
-    defineRouteChangeFunction();
-
-    setupCookie();
-
-    handlePostMessage(controller: controller);
-  }
-
-  void onLoadStart(
-      {required InAppWebViewController controller, required WebUri? url}) {
-    print('----------GET URL: $url');
-
-    setState(() {
-      noInternet = false;
-      isLoading = true;
-      showErrorPage = false;
-      slowInternetPage = false;
-      this.url = url.toString();
-    });
-    if (isOpenDialog == true && dialogContext != null) {
-      Navigator.of(dialogContext!).pop();
-    }
-    context.read<WebviewURLProvider>().setCurrentURL(url.toString());
-  }
-
-  void onLoadStop(
-      {required InAppWebViewController controller,
-      required WebUri? url}) async {
-    if (webViewController != null) {
-      Uri? uri = url?.uriValue;
-      if (uri != null) {
-        webviewUtils.handleDeepLink(
-            webViewController: webViewController,
-            path: uri.path + (uri.hasQuery ? '?${uri.query}' : ''));
-      }
-    }
-    // print("${webViewController.}")
-    webviewUtils.getUserId(
-        cookieManager: cookieManager, url: widget.url, name: "USER_INFOR");
-    await controller.evaluateJavascript(source: listenRouterChange);
-    _pullToRefreshController.endRefreshing();
-    print("stop successful");
-    setState(() {
-      this.url = url.toString();
-      isLoading = false;
-      if (!noInternet && showNoInternet) {
-        showNoInternet = false;
-      }
-    });
+  @override
+  void dispose() {
+    _webViewController = null;
+    super.dispose();
   }
 
   @override
@@ -399,311 +106,253 @@ class _WebViewContainerState extends State<WebViewContainer>
                   child: GestureDetector(
                     onHorizontalDragEnd: (dragEndDetails) async {
                       if (dragEndDetails.primaryVelocity! > 0) {
-                        if (await webViewController!.canGoBack()) {
-                          print("back to : ${webViewController!.getUrl()}");
-                          webViewController!.goBack();
+                        if (await _webViewController?.canGoBack() ?? false) {
+                          print(
+                              "back to : ${await _webViewController?.getUrl()}");
+                          _webViewController?.goBack();
                         }
                       }
                     },
                     // ignore: deprecated_member_use
-                    child: !widget.webUrl
-                        ? SizedBox()
-                        : Stack(
-                            alignment: AlignmentDirectional.topStart,
-                            clipBehavior: Clip.hardEdge,
-                            children: [
-                              _validURL
-                                  ? InAppWebView(
-                                      initialUrlRequest: URLRequest(
-                                          url: WebUri.uri(
-                                              Uri.parse(widget.url))),
-                                      initialSettings: options,
-                                      windowId: widget.windowId,
-                                      keepAlive: keepAlive,
-                                      pullToRefreshController:
-                                          _pullToRefreshController,
-                                      gestureRecognizers: <Factory<
-                                          OneSequenceGestureRecognizer>>{
-                                        Factory<OneSequenceGestureRecognizer>(
-                                            () => EagerGestureRecognizer()),
-                                      },
-                                      onWebViewCreated: (controller) async {
-                                        onWebViewCreated(
-                                            controller: controller);
-                                      },
-                                      onScrollChanged:
-                                          (controller, x, y) async {
-                                        onScrollChanged(y: y);
-                                      },
-                                      onLoadStart: (controller, url) async {
-                                        // Only reset loading state on initial load
-                                        // After initial load completes, don't reset to avoid showing splash again
-                                        final loadingProvider =
-                                            Provider.of<WebViewLoadingProvider>(
-                                                context,
-                                                listen: false);
-                                        // Only reset if progress hasn't reached 1.0 yet (initial load not completed)
-                                        if (loadingProvider.progress < 1.0) {
-                                          loadingProvider.reset();
+                    child: Stack(
+                      alignment: AlignmentDirectional.topStart,
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        _isValidURL
+                            ? InAppWebView(
+                                initialUrlRequest: URLRequest(
+                                    url: WebUri.uri(Uri.parse(_initialUrl))),
+                                initialSettings: _options,
+                                keepAlive: _keepAlive,
+                                pullToRefreshController:
+                                    _pullToRefreshController,
+                                gestureRecognizers: <Factory<
+                                    OneSequenceGestureRecognizer>>{
+                                  Factory<OneSequenceGestureRecognizer>(
+                                      () => EagerGestureRecognizer()),
+                                },
+                                onWebViewCreated: (controller) async {
+                                  // Delegate to mixin for business logic
+                                  _webViewController = controller;
+                                  await onWebViewCreated(
+                                    controller: controller,
+                                    onDownload: handleDownload,
+                                    onControllerInitialized: (c) {},
+                                  );
+                                },
+                                onScrollChanged: (controller, x, y) async {
+                                  // Use mixin method with state tracking
+                                  super.onScrollChanged(y: y);
+                                },
+                                onLoadStart: (controller, url) async {
+                                  // Delegate to mixin
+                                  super.onLoadStart(
+                                    controller: controller,
+                                    url: url,
+                                    isOpenDialog: _isOpenDialog,
+                                    dialogContext: _dialogContext,
+                                    onUpdate: () {
+                                      setState(() {
+                                        _noInternet = false;
+                                        _showErrorPage = false;
+                                        _slowInternetPage = false;
+                                        _currentUrl = url.toString();
+                                      });
+                                    },
+                                  );
+                                },
+                                onLoadStop: (controller, url) async {
+                                  // Delegate to mixin
+                                  await super.onLoadStop(
+                                    controller: controller,
+                                    url: url,
+                                    webViewController: _webViewController,
+                                    pullToRefreshController:
+                                        _pullToRefreshController,
+                                    onUpdate: () {
+                                      setState(() {
+                                        _currentUrl = url.toString();
+                                        if (!_noInternet && _showNoInternet) {
+                                          _showNoInternet = false;
                                         }
-                                        onLoadStart(
-                                            controller: controller, url: url);
-                                      },
-                                      onLoadStop: (controller, url) async {
-                                        onLoadStop(
-                                            controller: controller, url: url);
-                                      },
-                                      onReceivedError: (
-                                        controller,
-                                        url,
-                                        webResourceError,
-                                      ) async {
-                                        _pullToRefreshController
-                                            .endRefreshing();
-                                        print(
-                                            "onReceivedError ${webResourceError.description}");
-
-                                        void handleNonWebsiteUrl(
-                                            Uri uri) async {
-                                          if (await canLaunchUrl(uri)) {
-                                            print("launch unsupport url $uri");
-                                            await launchUrl(uri);
-                                          } else {
-                                            webViewController?.stopLoading();
-                                            webviewUtils.showSnackBarErr(
-                                                context, "앱이 설치되어 있지 않습니다.");
-                                          }
+                                      });
+                                    },
+                                  );
+                                },
+                                onReceivedError: (
+                                  controller,
+                                  request,
+                                  error,
+                                ) async {
+                                  await onReceivedError(
+                                    controller: controller,
+                                    request: request,
+                                    error: error,
+                                    pullToRefreshController:
+                                        _pullToRefreshController,
+                                    webViewController: _webViewController,
+                                    onShowError: showSnackBarErr,
+                                    onUpdateState: ({
+                                      progress,
+                                      showNoInternet,
+                                      noInternet,
+                                    }) {
+                                      setState(() {
+                                        if (progress != null) {
+                                          _progress = progress;
                                         }
+                                        if (showNoInternet != null) {
+                                          _showNoInternet = showNoInternet;
+                                        }
+                                        if (noInternet != null) {
+                                          _noInternet = noInternet;
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                                onReceivedHttpError:
+                                    (controller, url, statusCode) {
+                                  _pullToRefreshController.endRefreshing();
+                                  print("onReceivedHttpError $statusCode");
+                                  // setState(() {
+                                  //   showErrorPage = true;
+                                  //   isLoading = false;
+                                  // });
+                                },
+                                onReceivedServerTrustAuthRequest:
+                                    (controller, challenge) async {
+                                  return ServerTrustAuthResponse(
+                                      action: ServerTrustAuthResponseAction
+                                          .PROCEED);
+                                },
+                                onGeolocationPermissionsShowPrompt:
+                                    (controller, origin) async {
+                                  await Permission.location.request();
+                                  return Future.value(
+                                      GeolocationPermissionShowPromptResponse(
+                                          origin: origin,
+                                          allow: true,
+                                          retain: true));
+                                },
+                                onPermissionRequest:
+                                    (controller, request) async {
+                                  return PermissionResponse(
+                                      resources: request.resources,
+                                      action: PermissionResponseAction.GRANT);
+                                },
+                                onProgressChanged: (controller, progress) {
+                                  if (progress == 100) {
+                                    _pullToRefreshController.endRefreshing();
+                                  }
+                                  setState(() {
+                                    _progress = progress / 100;
+                                  });
+                                  // Notify loading provider
+                                  // The provider will handle preventing progress from going below 1.0
+                                  // after initial load completes
+                                  Provider.of<WebViewProvider>(context,
+                                          listen: false)
+                                      .setProgress(progress / 100);
 
+                                  // Trigger splash visibility update in MainScreen
+                                  // This will be handled by Consumer's addPostFrameCallback
+                                },
+                                shouldOverrideUrlLoading:
+                                    (controller, navigationAction) async {
+                                  return super.getNavigationPolicy(
+                                      navigationAction.request.url);
+                                },
+                                onCreateWindow:
+                                    (controller, createWindowRequest) async {
+                                  return handleCreateWindow(
+                                    createWindowRequest: createWindowRequest,
+                                    webviewWindow: _webviewWindow,
+                                    isOpenDialog: _isOpenDialog,
+                                    isNewWindowLoading: _isDialogLoading,
+                                    allowClosePopUp: _allowClosePopUp,
+                                    dialogContext: _dialogContext,
+                                    url: _currentUrl,
+                                    options: _options,
+                                    setIsOpenDialog: (value) =>
+                                        setState(() => _isOpenDialog = value),
+                                    setIsNewWindowLoading: (value) => setState(
+                                        () => _isDialogLoading = value),
+                                    setAllowClosePopUp: (value) => setState(
+                                        () => _allowClosePopUp = value),
+                                  );
+                                },
+                                onDownloadStartRequest:
+                                    (controller, downloadStartRequest) async {
+                                  await onDownloadStartRequest(
+                                    request: downloadStartRequest,
+                                    onUpdateState: ({isLoading, progress}) {
+                                      setState(() {
+                                        if (progress != null) {
+                                          _progress = progress;
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                                onUpdateVisitedHistory:
+                                    (controller, url, androidIsReload) async {
+                                  onUpdateVisitedHistory(
+                                      url: url,
+                                      onUpdateUrl: (newUrl) {
                                         setState(() {
-                                          isLoading = false;
-                                          progress = 1;
-                                          final uri = url.url;
-                                          if (webResourceError.description ==
-                                              "The operation couldn't be completed. (NSURLErrorDomain error -999.)") {
-                                            webViewController?.loadUrl(
-                                                urlRequest: URLRequest(
-                                                    url: WebUri.uri(Uri.parse(
-                                                        widget.url))));
-                                            return;
-                                          }
-                                          if (Platform.isIOS &&
-                                              webResourceError.description ==
-                                                  'unsupported URL' &&
-                                              webviewUtils.isNonWebsiteUrl(
-                                                  uri.toString())) {
-                                            handleNonWebsiteUrl(uri);
-                                            return;
-                                          }
-                                          if (Platform.isAndroid) {
-                                            if (webResourceError.description ==
-                                                'net::ERR_UNKNOWN_URL_SCHEME') {
-                                              webViewController?.goBack();
-                                              return;
-                                            }
-
-                                            if (webResourceError.description ==
-                                                    'net::ERR_INTERNET_DISCONNECTED' ||
-                                                webResourceError.description ==
-                                                    'net::ERR_TIMED_OUT') {
-                                              showNoInternet = true;
-                                              noInternet = true;
-                                              return;
-                                            }
-                                          }
-
-                                          if (Platform.isIOS &&
-                                              webResourceError.description ==
-                                                  'The Internet connection appears to be offline.') {
-                                            showNoInternet = true;
-                                            noInternet = true;
-                                            return;
-                                          }
+                                          _currentUrl = newUrl;
                                         });
-                                      },
-                                      onReceivedHttpError:
-                                          (controller, url, statusCode) {
-                                        _pullToRefreshController
-                                            .endRefreshing();
-                                        print(
-                                            "onReceivedHttpError $statusCode");
-                                        // setState(() {
-                                        //   showErrorPage = true;
-                                        //   isLoading = false;
-                                        // });
-                                      },
-                                      onReceivedServerTrustAuthRequest:
-                                          (controller, challenge) async {
-                                        return ServerTrustAuthResponse(
-                                            action:
-                                                ServerTrustAuthResponseAction
-                                                    .PROCEED);
-                                      },
-                                      onGeolocationPermissionsShowPrompt:
-                                          (controller, origin) async {
-                                        await Permission.location.request();
-                                        return Future.value(
-                                            GeolocationPermissionShowPromptResponse(
-                                                origin: origin,
-                                                allow: true,
-                                                retain: true));
-                                      },
-                                      onPermissionRequest:
-                                          (controller, request) async {
-                                        return PermissionResponse(
-                                            resources: request.resources,
-                                            action:
-                                                PermissionResponseAction.GRANT);
-                                      },
-                                      onProgressChanged:
-                                          (controller, progress) {
-                                        if (progress == 100) {
-                                          _pullToRefreshController
-                                              .endRefreshing();
-                                          isLoading = false;
-                                        }
-                                        setState(() {
-                                          this.progress = progress / 100;
-                                        });
-                                        // Notify loading provider
-                                        // The provider will handle preventing progress from going below 1.0
-                                        // after initial load completes
-                                        Provider.of<WebViewLoadingProvider>(
-                                                context,
-                                                listen: false)
-                                            .setProgress(progress / 100);
-
-                                        // Trigger splash visibility update in MainScreen
-                                        // This will be handled by Consumer's addPostFrameCallback
-                                      },
-                                      shouldOverrideUrlLoading:
-                                          (controller, navigationAction) async {
-                                        final uri =
-                                            navigationAction.request.url;
-
-                                        return webviewUtils
-                                            .navigationActionPolicy(uri);
-                                      },
-                                      onCreateWindow: (controller,
-                                          createWindowRequest) async {
-                                        final webUri =
-                                            createWindowRequest.request.url;
-                                        if (webUri.toString().contains(RegExp(
-                                            r'\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|txt|csv)$'))) {
-                                          print("downloading file");
-                                          // Prevent the webview from loading the URL
-                                          return false;
-                                        }
-                                        if (webUri != null &&
-                                            (webUri.toString().contains(
-                                                    "https://accounts.google.com/o/oauth2/v2/auth") ||
-                                                webUri.toString().contains(
-                                                    "https://kauth.kakao.com/oauth/authorize") ||
-                                                webUri.toString().contains(
-                                                    "https://nid.naver.com/oauth2.0/authorize"))) {
-                                          return false;
-                                        }
-                                        if (Platform.isAndroid) {
-                                          return false;
-                                        }
-
-                                        print('onCreateWindow $webUri');
-                                        webviewWindow.createWindow(
-                                            windowId:
-                                                createWindowRequest.windowId,
-                                            setState: setState,
-                                            isOpenDialog: isOpenDialog,
-                                            isNewWindowLoading:
-                                                isNewWindowLoading,
-                                            allowClosePopUp: _allowClosePopUp,
-                                            context: context,
-                                            dialogContext: dialogContext,
-                                            url: url,
-                                            options: options,
-                                            webinitialUrl: 'webinitialUrl');
-                                        return true;
-                                      },
-                                      onDownloadStartRequest: (controller,
-                                          downloadStartRrquest) async {
-                                        setState(() {
-                                          isLoading = false;
-                                          progress = 1;
-                                        });
-                                        enableStoragePermision()
-                                            .then((status) async {
-                                          String url = downloadStartRrquest.url
-                                              .toString();
-                                          String fileName = downloadStartRrquest
-                                              .suggestedFilename
-                                              .toString();
-                                          if (status == true) {
-                                            webviewUtils.handleDownload(
-                                                url: url,
-                                                context: context,
-                                                name: fileName);
-                                          } else {
-                                            openAppSettings();
-                                          }
-                                        });
-                                      },
-                                      onUpdateVisitedHistory: (controller, url,
-                                          androidIsReload) async {
-                                        setState(() {
-                                          this.url = url.toString();
-                                        });
-                                      },
-                                      onConsoleMessage: (controller, message) {
-                                        print(
-                                            '------console-log: ${message.message}');
-                                      },
-                                    )
-                                  : Center(
-                                      child: Text(
-                                      'Url is not valid',
-                                      style:
-                                          Theme.of(context).textTheme.bodyLarge,
-                                    )),
-                              showNoInternet
-                                  ? Center(
-                                      child: NoInternetWidget(reload: () async {
-                                        if (Platform.isAndroid) {
-                                          webViewController!.reload();
-                                        } else if (Platform.isIOS) {
-                                          webViewController!.loadUrl(
-                                              urlRequest: URLRequest(
-                                                  url: WebUri.uri(
-                                                      Uri.parse(url))));
-                                        }
-                                      }),
-                                    )
-                                  : const SizedBox(height: 0, width: 0),
-                              showErrorPage
-                                  ? Center(
-                                      child: NotFound(
-                                          webViewController: webViewController!,
-                                          url: url,
-                                          title1: 'Page not found',
-                                          title2:
-                                              'Page not found, please try again'))
-                                  : const SizedBox(height: 0, width: 0),
-                              slowInternetPage
-                                  ? Center(
-                                      child: NotFound(
-                                          webViewController: webViewController!,
-                                          url: url,
-                                          title1: 'Incorrect URL',
-                                          title2:
-                                              'Incorrect URL, please try again'))
-                                  : const SizedBox(height: 0, width: 0),
-                              // Loading overlay circle
-                              progress < 1.0 && _validURL
-                                  ? LoadingOverlay(
-                                      progress: progress,
-                                      animation: animation,
-                                    )
-                                  : const SizedBox.shrink(),
-                            ],
-                          ),
+                                      });
+                                },
+                                onConsoleMessage: (controller, message) {
+                                  super.onConsoleMessage(message);
+                                },
+                              )
+                            : Center(
+                                child: Text(
+                                'Url is not valid',
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              )),
+                        _showNoInternet
+                            ? Center(
+                                child: NoInternetWidget(reload: () async {
+                                  if (Platform.isAndroid) {
+                                    _webViewController?.reload();
+                                  } else if (Platform.isIOS) {
+                                    _webViewController?.loadUrl(
+                                        urlRequest: URLRequest(
+                                            url: WebUri.uri(
+                                                Uri.parse(_currentUrl))));
+                                  }
+                                }),
+                              )
+                            : const SizedBox(height: 0, width: 0),
+                        _showErrorPage
+                            ? Center(
+                                child: NotFound(
+                                    webViewController: _webViewController!,
+                                    url: _currentUrl,
+                                    title1: 'Page not found',
+                                    title2: 'Page not found, please try again'))
+                            : const SizedBox(height: 0, width: 0),
+                        _slowInternetPage
+                            ? Center(
+                                child: NotFound(
+                                    webViewController: _webViewController!,
+                                    url: _currentUrl,
+                                    title1: 'Incorrect URL',
+                                    title2: 'Incorrect URL, please try again'))
+                            : const SizedBox(height: 0, width: 0),
+                        // Loading overlay circle
+                        _progress < 1.0 && _isValidURL
+                            ? LoadingOverlay(
+                                progress: _progress,
+                              )
+                            : const SizedBox.shrink(),
+                        DevToolButton(),
+                      ],
+                    ),
                   )),
             )
           ],

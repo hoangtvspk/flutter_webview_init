@@ -8,15 +8,17 @@ import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_base/helpers/Themes.dart';
 import 'package:webview_base/helpers/icons.dart';
-import 'package:webview_base/provider/webViewControllerProvider.dart';
+import 'package:webview_base/provider/webview_provider.dart';
 
 class WebviewWindow {
   void createWindow({
     required int windowId,
-    required void Function(void Function()) setState,
     required bool isOpenDialog,
     required bool isNewWindowLoading,
     required bool allowClosePopUp,
+    required Function(bool isOpenDialog) setIsOpenDialog,
+    required Function(bool isNewWindowLoading) setIsNewWindowLoading,
+    required Function(bool allowClosePopUp) setAllowClosePopUp,
     required BuildContext context,
     required BuildContext? dialogContext,
     required String url,
@@ -27,26 +29,14 @@ class WebviewWindow {
       Factory(() => EagerGestureRecognizer())
     };
 
-    final provider =
-        Provider.of<WebViewControllerProvider>(context, listen: false);
+    final provider = Provider.of<WebViewProvider>(context, listen: false);
     InAppWebViewController? webViewController = provider.controller;
 
-    late InAppWebViewController windowController;
-
     UniqueKey key = UniqueKey();
-    setState(() {
-      isOpenDialog = true;
-      isNewWindowLoading = true;
-    });
+    setIsOpenDialog(true);
+    setIsNewWindowLoading(true);
     Future.delayed(
-        const Duration(seconds: 3),
-        (() => {
-              setState(
-                () {
-                  allowClosePopUp = true;
-                },
-              )
-            }));
+        const Duration(seconds: 3), (() => {setAllowClosePopUp(true)}));
 
     showModalBottomSheet<void>(
       isDismissible: allowClosePopUp,
@@ -147,9 +137,8 @@ class WebviewWindow {
                         gestureRecognizers: gestureRecognizers,
                         windowId: windowId,
                         initialSettings: options,
-                        onWebViewCreated: (InAppWebViewController controller) {
-                          windowController = controller;
-                        },
+                        onWebViewCreated:
+                            (InAppWebViewController controller) {},
                         onCloseWindow: (controller) => {print('close window')},
                         onLoadStart: (windowController, loadUrl) {},
                         shouldOverrideUrlLoading:
@@ -170,7 +159,9 @@ class WebviewWindow {
 
                             Future.delayed(const Duration(milliseconds: 200),
                                 () {
-                              Navigator.of(context).pop();
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
                             });
                             return NavigationActionPolicy.CANCEL;
                           }
@@ -191,7 +182,9 @@ class WebviewWindow {
                         onReceivedError: (controller, url, code) {
                           Future.delayed(const Duration(milliseconds: 1000),
                               () {
-                            Navigator.of(context).pop();
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
                           });
 
                           print(
@@ -200,7 +193,9 @@ class WebviewWindow {
                         onCreateWindow: (controller, createWindowAction) async {
                           createWindow(
                               windowId: windowId,
-                              setState: setState,
+                              setIsOpenDialog: setIsOpenDialog,
+                              setIsNewWindowLoading: setIsNewWindowLoading,
+                              setAllowClosePopUp: setAllowClosePopUp,
                               isOpenDialog: isOpenDialog,
                               isNewWindowLoading: isNewWindowLoading,
                               allowClosePopUp: allowClosePopUp,
@@ -225,9 +220,7 @@ class WebviewWindow {
         });
       },
     ).then((value) {
-      setState(() {
-        isOpenDialog = false;
-      });
+      setIsOpenDialog(false);
     });
   }
 }

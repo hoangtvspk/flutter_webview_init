@@ -24,13 +24,13 @@ class UserInfo {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> _data = <String, dynamic>{};
-    _data["fullName"] = fullName;
-    _data["email"] = email;
-    _data["socialId"] = socialId;
-    _data["avatar"] = avatar;
-    _data["id"] = id;
-    _data["roleId"] = roleId;
-    return _data;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data["fullName"] = fullName;
+    data["email"] = email;
+    data["socialId"] = socialId;
+    data["avatar"] = avatar;
+    data["id"] = id;
+    data["roleId"] = roleId;
+    return data;
   }
 }

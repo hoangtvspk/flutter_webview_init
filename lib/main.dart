@@ -8,18 +8,17 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_base/config/env_config.dart';
 import 'package:webview_base/config/firebase_config.dart';
-import 'package:webview_base/provider/appGlobalKey.dart';
-import 'package:webview_base/provider/webviewLoadingProvider.dart';
-import 'package:webview_base/provider/webviewURLProvider.dart';
+import 'package:webview_base/provider/app_global_key.dart';
+import 'package:webview_base/provider/webview_provider.dart';
 import 'package:webview_base/utils/permission.dart';
 
-import '../provider/navigationBarProvider.dart';
+import 'provider/navigation_bar_provider.dart';
 import 'constants/common.dart';
-import 'provider/savedCookieProvider.dart';
-import 'provider/themeProvider.dart';
-import 'provider/webViewControllerProvider.dart';
-import 'screens/MainScreen.dart';
-import 'services/cookies/cookiesServices.dart';
+import 'provider/saved_cookie_provider.dart';
+import 'provider/theme_provider.dart';
+
+import 'screens/main_screen.dart';
+import 'services/cookies/cookies_services.dart';
 
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
@@ -57,10 +56,8 @@ Future main() async {
     providers: [
       ChangeNotifierProvider<NavigationBarProvider>(
           create: (_) => NavigationBarProvider()),
-      ChangeNotifierProvider(create: (context) => WebviewURLProvider()),
-      ChangeNotifierProvider(create: (context) => WebViewControllerProvider()),
+      ChangeNotifierProvider(create: (context) => WebViewProvider()),
       ChangeNotifierProvider(create: (context) => SavedCookieProvider()),
-      ChangeNotifierProvider(create: (context) => WebViewLoadingProvider())
     ],
     builder: ((providerContext, child) {
       return MyApp();
@@ -69,7 +66,7 @@ Future main() async {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -104,7 +101,6 @@ class _MyAppState extends State<MyApp> {
         theme: AppThemes.lightTheme,
         navigatorKey: navigatorKey,
         onGenerateRoute: null,
-        home: MyHomePage(
-            webUrl: EnvConfig.instance.webviewUrl, showDevToolButton: false));
+        home: MyHomePage());
   }
 }

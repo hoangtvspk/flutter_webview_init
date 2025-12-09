@@ -4,34 +4,26 @@ import 'package:app_links/app_links.dart';
 import 'package:webview_base/config/env_config.dart';
 import 'package:webview_base/helpers/Themes.dart';
 import 'package:webview_base/helpers/icons.dart';
-import 'package:webview_base/provider/webviewLoadingProvider.dart';
+import 'package:webview_base/provider/webview_provider.dart';
+import 'package:webview_base/repositories/auth_repository.dart';
 import 'package:webview_base/widgets/common/dialog.dart';
 import 'package:webview_base/widgets/splash_overlay/index.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
+
 import 'package:version/version.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:provider/provider.dart';
-import 'package:provider/src/provider.dart';
-import '../provider/navigationBarProvider.dart';
-import '../provider/webViewControllerProvider.dart';
-import 'HomeScreen.dart';
+import 'package:webview_base/widgets/webview/index.dart';
+import '../provider/navigation_bar_provider.dart';
 
 class MyHomePage extends StatefulWidget {
-  final String webUrl;
-  final bool showDevToolButton;
-  final int? windowId;
-
-  const MyHomePage(
-      {super.key,
-      required this.webUrl,
-      this.windowId,
-      this.showDevToolButton = false});
+  const MyHomePage({
+    super.key,
+  });
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
@@ -72,11 +64,11 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final loadingProvider =
-            Provider.of<WebViewLoadingProvider>(context, listen: false);
+            Provider.of<WebViewProvider>(context, listen: false);
         // Only reset if not already initialized (for hot reload case)
         // If already initialized and webview loaded, keep it hidden
         if (!_isAppInitialized || loadingProvider.progress < 1.0) {
-          loadingProvider.reset();
+          loadingProvider.resetLoading();
         }
       }
     });
@@ -84,11 +76,10 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     _initializeApp();
 
     Future.delayed(Duration.zero, () {
-      if (context.mounted) {
-        context
-            .read<NavigationBarProvider>()
-            .setAnimationController(navigationContainerAnimationController);
-      }
+      // ignore: use_build_context_synchronously
+      context
+          .read<NavigationBarProvider>()
+          .setAnimationController(navigationContainerAnimationController);
     });
   }
 
@@ -100,14 +91,10 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
         appDialog.showUpdateDialog(context);
         return;
       }
-      SharedPreferences pref = await SharedPreferences.getInstance();
       await FirebaseMessaging.instance.getAPNSToken();
       var fcmToken = await FirebaseMessaging.instance.getToken();
 
-      if (fcmToken != null && pref.getString("fcmToken") == null) {
-        pref.setString("fcmToken", fcmToken);
-      }
-
+      AuthRepository().setFcmToken(fcmToken: fcmToken ?? '');
       print('--------fcmToken:$fcmToken');
     } on Exception catch (e) {
       print("get fcm err : =>>> $e");
@@ -152,8 +139,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
 
   void openAppLink(Uri uri) {
     String? url = uri.toString().replaceFirst("ezsale://app?url=", "");
-    final provider =
-        Provider.of<WebViewControllerProvider>(context, listen: false);
+    final provider = Provider.of<WebViewProvider>(context, listen: false);
     InAppWebViewController? webViewController = provider.controller;
 
     if (webViewController != null && url.isNotEmpty) {
@@ -201,7 +187,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
             bottom: Platform.isIOS ? false : false,
             child: Scaffold(
               extendBody: true,
-              body: Consumer<WebViewLoadingProvider>(
+              body: Consumer<WebViewProvider>(
                 builder: (context, loadingProvider, child) {
                   // Update splash visibility when progress changes
                   bool isLoaded = _isAppInitialized &&
@@ -225,11 +211,6 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                     _shouldHideSplash = false;
                   }
 
-                  print("isLoaded => $isLoaded" +
-                      " _isAppInitialized => $_isAppInitialized" +
-                      " loadingProvider.progress => ${loadingProvider.progress}" +
-                      " _isUpdateRequired => $_isUpdateRequired" +
-                      " _shouldHideSplash => $_shouldHideSplash");
                   return Stack(
                     children: [
                       Opacity(
@@ -238,12 +219,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                           key: _navigatorKeys[0],
                           onGenerateRoute: (routeSettings) {
                             return MaterialPageRoute(
-                                builder: (_) => HomeScreen(
-                                      widget.webUrl,
-                                      windowId: widget.windowId,
-                                      showDevToolButton:
-                                          widget.showDevToolButton,
-                                    ));
+                                builder: (_) => WebViewContainer());
                           },
                         ),
                       ),
@@ -272,8 +248,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
     }
     final env = EnvConfig.instance;
 
-    final provider =
-        Provider.of<WebViewControllerProvider>(context, listen: false);
+    final provider = Provider.of<WebViewProvider>(context, listen: false);
     InAppWebViewController? webViewController = provider.controller;
 
     if (webViewController == null) {
@@ -305,6 +280,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
       }
     } else {
       showDialog(
+          // ignore: use_build_context_synchronously
           context: context,
           builder: (context) => AlertDialog(
                 insetPadding: EdgeInsets.all(24), // Remove default padding
@@ -319,7 +295,8 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                         SvgPicture.asset(
                           Theme.of(context).colorScheme.exitIcon,
                           width: perWidth(context, 80),
-                          color: Color(0xff5A4FF3),
+                          colorFilter: ColorFilter.mode(
+                              Color(0xff5A4FF3), BlendMode.srcIn),
                         ),
                         SizedBox(
                           height: 24,

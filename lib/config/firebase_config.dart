@@ -11,7 +11,7 @@ import 'package:webview_base/constants/javascript.dart';
 import 'package:webview_base/firebase_options.dart';
 import 'package:webview_base/firebase_options_dev.dart';
 import 'package:webview_base/firebase_options_staging.dart';
-import 'package:webview_base/provider/webViewControllerProvider.dart';
+import 'package:webview_base/provider/webview_provider.dart';
 
 class FirebaseConfig {
   FirebaseConfig._internal();
@@ -44,11 +44,16 @@ class FirebaseConfig {
   /// Initialize Firebase messaging and notifications
   Future<void> initialize(BuildContext context) async {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      showFlutterNotification(context, message);
+      if (context.mounted) {
+        showFlutterNotification(context, message);
+      }
     });
-    await setupInteractedMessage(context);
-
-    await setupFlutterNotifications(context);
+    if (context.mounted) {
+      await setupInteractedMessage(context);
+    }
+    if (context.mounted) {
+      await setupFlutterNotifications(context);
+    }
   }
 
   /// Setup message interaction handlers
@@ -67,15 +72,16 @@ class FirebaseConfig {
     // Also handle any interaction when the app is in the background via a
     // Stream listener
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      onMessageOpenApp(context, message);
+      if (context.mounted) {
+        onMessageOpenApp(context, message);
+      }
     });
   }
 
   /// Handle message when app is opened from background
   void onMessageOpenApp(BuildContext context, RemoteMessage message) async {
     try {
-      final provider =
-          Provider.of<WebViewControllerProvider>(context, listen: false);
+      final provider = Provider.of<WebViewProvider>(context, listen: false);
       InAppWebViewController? webViewController = provider.controller;
       if (webViewController == null) {
         saveDeepLink(message);
@@ -101,6 +107,18 @@ class FirebaseConfig {
   /// Setup Flutter local notifications
   Future<void> setupFlutterNotifications(BuildContext context) async {
     if (Platform.isIOS) {
+      // Request permission for iOS notifications
+      NotificationSettings settings =
+          await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      print('User granted permission: ${settings.authorizationStatus}');
       await FirebaseMessaging.instance.getAPNSToken();
     }
 
@@ -136,9 +154,9 @@ class FirebaseConfig {
 
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
-      alert: false,
+      alert: true,
       badge: true,
-      sound: false,
+      sound: true,
     );
     isFlutterLocalNotificationsInitialized = true;
   }
@@ -150,8 +168,7 @@ class FirebaseConfig {
       // Handle the action, like navigating to a specific screen
       print('Notification payload: ${response.payload}');
       try {
-        final provider =
-            Provider.of<WebViewControllerProvider>(context, listen: false);
+        final provider = Provider.of<WebViewProvider>(context, listen: false);
         provider.handleNotification(response.payload ?? '');
       } catch (e) {
         print("err => $e");
@@ -167,26 +184,23 @@ class FirebaseConfig {
     if (messId == message.messageId) {
       return;
     }
-    final provider =
-        Provider.of<WebViewControllerProvider>(context, listen: false);
-    InAppWebViewController? webViewController = provider.controller;
-    WebUri? webUri = await webViewController?.getUrl();
-    Uri? uri = webUri?.uriValue;
-    if (notification != null &&
-        Uri.parse(message.data['redirectUrl']).queryParameters['id'] !=
-            uri?.queryParameters['id']) {
+    if (notification != null) {
       print('show notification');
-      flutterLocalNotificationsPlugin.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
-          NotificationDetails(
-              android: AndroidNotificationDetails(channel.id, channel.name,
-                  channelDescription: channel.description,
-                  icon: 'ic_noti_icon',
-                  color: Color(0xff2E2C2C)),
-              iOS: DarwinNotificationDetails()),
-          payload: message.data['redirectUrl']);
+
+      // Only show notification using flutter_local_notifications on Android
+      // iOS will handle foreground notifications natively via setForegroundNotificationPresentationOptions
+      if (Platform.isAndroid) {
+        flutterLocalNotificationsPlugin.show(
+            notification.hashCode,
+            notification.title,
+            notification.body,
+            NotificationDetails(
+                android: AndroidNotificationDetails(channel.id, channel.name,
+                    channelDescription: channel.description,
+                    icon: 'ic_noti_icon',
+                    color: const Color(0xff2E2C2C))),
+            payload: message.data['redirectUrl']);
+      }
       messId = message.messageId;
     }
   }

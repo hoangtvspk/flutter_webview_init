@@ -27,8 +27,8 @@ class AppThemes {
         linearTrackColor: Color(0xFFFD41B4),
         color: Color(0xFF6A05FE),
         refreshBackgroundColor: Color(0xFFF37B46)),
-    highlightColor: primaryColor.withOpacity(0.2),
-    indicatorColor: accentColor,
+    highlightColor: primaryColor.withValues(alpha: 0.2),
     shadowColor: Colors.grey[400],
+    tabBarTheme: TabBarThemeData(indicatorColor: accentColor),
   );
 }
