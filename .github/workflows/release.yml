@@ -226,28 +226,14 @@ jobs:
           if echo "$MSG" | grep -q "android"; then
             cd android
             bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3 --verbose
-            bundle exec fastlane android deploy environment:dev --verbose 2>&1 | tee fastlane_android.out
-            echo "=== fastlane stdout (android) ==="
-            tail -n 200 fastlane_android.out || true
-            find fastlane -maxdepth 2 -name "*.log" -print || true
-            if [ -f fastlane/logs/latest.log ]; then
-              echo "=== fastlane latest.log (android) ==="
-              tail -n 200 fastlane/logs/latest.log
-            fi
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane android deploy environment:dev --verbose
           fi
           if echo "$MSG" | grep -q "ios"; then
             cd ios
             bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3 --verbose
-            bundle exec fastlane ios deploy environment:dev --verbose 2>&1 | tee fastlane_ios.out
-            echo "=== fastlane stdout (ios) ==="
-            tail -n 200 fastlane_ios.out || true
-            find fastlane -maxdepth 2 -name "*.log" -print || true
-            if [ -f fastlane/logs/latest.log ]; then
-              echo "=== fastlane latest.log (ios) ==="
-              tail -n 200 fastlane/logs/latest.log
-            fi
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane ios deploy environment:dev --verbose
           fi
 
   # ============= STAGING =============
@@ -325,28 +311,14 @@ jobs:
           if echo "$MSG" | grep -q "android"; then
             cd android
             bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3 --verbose
-            bundle exec fastlane android deploy environment:staging --verbose 2>&1 | tee fastlane_android.out
-            echo "=== fastlane stdout (android) ==="
-            tail -n 200 fastlane_android.out || true
-            find fastlane -maxdepth 2 -name "*.log" -print || true
-            if [ -f fastlane/logs/latest.log ]; then
-              echo "=== fastlane latest.log (android) ==="
-              tail -n 200 fastlane/logs/latest.log
-            fi
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane android deploy environment:staging --verbose
           fi
           if echo "$MSG" | grep -q "ios"; then
             cd ios
             bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3 --verbose
-            bundle exec fastlane ios deploy environment:staging --verbose 2>&1 | tee fastlane_ios.out
-            echo "=== fastlane stdout (ios) ==="
-            tail -n 200 fastlane_ios.out || true
-            find fastlane -maxdepth 2 -name "*.log" -print || true
-            if [ -f fastlane/logs/latest.log ]; then
-              echo "=== fastlane latest.log (ios) ==="
-              tail -n 200 fastlane/logs/latest.log
-            fi
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane ios deploy environment:staging --verbose
           fi
 
   # ============= PROD =============
@@ -424,26 +396,12 @@ jobs:
           if echo "$MSG" | grep -q "android"; then
             cd android
             bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3 --verbose
-            bundle exec fastlane android deploy environment:prod --verbose 2>&1 | tee fastlane_android.out
-            echo "=== fastlane stdout (android) ==="
-            tail -n 200 fastlane_android.out || true
-            find fastlane -maxdepth 2 -name "*.log" -print || true
-            if [ -f fastlane/logs/latest.log ]; then
-              echo "=== fastlane latest.log (android) ==="
-              tail -n 200 fastlane/logs/latest.log
-            fi
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane android deploy environment:prod --verbose
           fi
           if echo "$MSG" | grep -q "ios"; then
             cd ios
             bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3 --verbose
-            bundle exec fastlane ios deploy environment:prod --verbose 2>&1 | tee fastlane_ios.out
-            echo "=== fastlane stdout (ios) ==="
-            tail -n 200 fastlane_ios.out || true
-            find fastlane -maxdepth 2 -name "*.log" -print || true
-            if [ -f fastlane/logs/latest.log ]; then
-              echo "=== fastlane latest.log (ios) ==="
-              tail -n 200 fastlane/logs/latest.log
-            fi
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane ios deploy environment:prod --verbose
           fi
