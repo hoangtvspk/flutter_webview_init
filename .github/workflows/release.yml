@@ -3,8 +3,7 @@ name: Build & Deploy (on branch push with "deploy" in commit)
 on:
   workflow_run:
     workflows: ["CI - Analyze & Test"]
-    types:
-      - completed
+    types: [completed]
   workflow_dispatch:
 
 env:
