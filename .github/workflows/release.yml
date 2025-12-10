@@ -36,22 +36,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          # Sử dụng SHA được truyền vào để đảm bảo checkout đúng commit
-          ref: ${{ inputs.commit_sha }}
 
       - name: Check commit message contains 'deploy'
         id: check
         run: |
-          # SỬA: Thay github.event.head_commit.message bằng inputs.commit_message
-          MSG="${{ inputs.commit_message || '' }}"
+          MSG="${{ github.event.head_commit.message || '' }}"
           echo "Commit: $MSG"
           if echo "$MSG" | grep -q "deploy"; then
-            # SỬA: Dùng $GITHUB_OUTPUT thay cho ::set-output
-            echo "should_run=true" >> $GITHUB_OUTPUT 
-            echo "message=$MSG" >> $GITHUB_OUTPUT
+            echo "::set-output name=should_run::true"
+            echo "::set-output name=message::$MSG"
           else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "message=$MSG" >> $GITHUB_OUTPUT
+            echo "::set-output name=should_run::false"
+            echo "::set-output name=message::$MSG"
             echo "Commit message does not contain 'deploy' => skipping build/deploy"
           fi
 
@@ -85,7 +81,6 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          # ... (GIỮ NGUYÊN logic tạo file của bạn) ...
           mkdir -p lib/config
 
           echo "$ENV_DEV_CONTENT" > lib/config/.env.dev
@@ -110,17 +105,19 @@ jobs:
             echo "storeFile=app-release-key.jks" >> android/key.properties
           fi
 
-      - name: Upload Build Secrets and Config (Keystore, Keys, Env)
+      - name: Upload prepare artifacts
         if: steps.check.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: build-secrets # Tên artifact
+          name: prepare-artifacts
+          if-no-files-found: ignore
           path: |
-            android/key.properties
-            android/app/app-release-key.jks
-            lib/config/
+            lib/config/.env.dev
+            lib/config/.env.staging
+            lib/config/.env.prod
             google-play-service-account.json
-          # Giữ lại các file này để các jobs Build/Deploy sau có thể dùng
+            android/app/app-release-key.jks
+            android/key.properties
 
   # ============= DEV =============
   build-dev:
@@ -132,15 +129,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # *** BƯỚC MỚI: TẢI LẠI CÁC FILE ĐÃ TẠO TỪ JOB PREPARE ***
-      - name: Download Build Secrets and Config
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: build-secrets
+          name: prepare-artifacts
 
       - run: flutter pub get
 
-      # ... (Các bước Build còn lại của bạn) ...
       - name: Build
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
@@ -174,12 +168,6 @@ jobs:
     runs-on: [self-hosted, macos]
     if: needs.prepare.outputs.should_run == 'true'
     steps:
-      # SỬA: Thêm bước tải artifact Build Secrets nếu Deploy cần các file env hoặc json
-      - name: Download Build Secrets and Config
-        uses: actions/download-artifact@v4
-        with:
-          name: build-secrets
-
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -215,15 +203,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # *** BƯỚC MỚI: TẢI LẠI CÁC FILE ĐÃ TẠO TỪ JOB PREPARE ***
-      - name: Download Build Secrets and Config
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: build-secrets
+          name: prepare-artifacts
 
       - run: flutter pub get
 
-      # ... (Các bước Build còn lại của bạn) ...
       - name: Build
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
@@ -254,12 +239,6 @@ jobs:
     runs-on: [self-hosted, macos]
     if: needs.prepare.outputs.should_run == 'true'
     steps:
-      # SỬA: Thêm bước tải artifact Build Secrets nếu Deploy cần các file env hoặc json
-      - name: Download Build Secrets and Config
-        uses: actions/download-artifact@v4
-        with:
-          name: build-secrets
-
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -295,15 +274,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # *** BƯỚC MỚI: TẢI LẠI CÁC FILE ĐÃ TẠO TỪ JOB PREPARE ***
-      - name: Download Build Secrets and Config
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: build-secrets
+          name: prepare-artifacts
 
       - run: flutter pub get
 
-      # ... (Các bước Build còn lại của bạn) ...
       - name: Build
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
@@ -334,12 +310,6 @@ jobs:
     runs-on: [self-hosted, macos]
     if: needs.prepare.outputs.should_run == 'true'
     steps:
-      # SỬA: Thêm bước tải artifact Build Secrets nếu Deploy cần các file env hoặc json
-      - name: Download Build Secrets and Config
-        uses: actions/download-artifact@v4
-        with:
-          name: build-secrets
-
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
