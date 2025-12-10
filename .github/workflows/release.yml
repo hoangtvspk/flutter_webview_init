@@ -1,6 +1,10 @@
 name: Build & Deploy (on branch push with "deploy" in commit)
 
 on:
+  workflow_run:
+    workflows: ["CI - Analyze & Test"]
+    types:
+      - completed
   push:
     branches:
       - dev
@@ -53,13 +57,6 @@ jobs:
             echo "flutter_installed=false" >> $GITHUB_OUTPUT
             echo "⚠ Flutter chưa có trên runner"
           fi
-
-      - name: Setup Flutter (from runner)
-        if: steps.check.outputs.should_run == 'true' && steps.check_flutter.outputs.flutter_installed == 'true'
-        run: |
-          flutter --version
-          flutter channel ${{ env.FLUTTER_CHANNEL }}
-          flutter upgrade
 
       - name: Setup Flutter (download)
         if: steps.check.outputs.should_run == 'true' && steps.check_flutter.outputs.flutter_installed == 'false'

@@ -31,13 +31,6 @@ jobs:
             echo "⚠ Flutter chưa có trên runner"
           fi
 
-      - name: Setup Flutter (from runner)
-        if: steps.check_flutter.outputs.flutter_installed == 'true'
-        run: |
-          flutter --version
-          flutter channel ${{ env.FLUTTER_CHANNEL }}
-          flutter upgrade
-
       - name: Setup Flutter (download)
         if: steps.check_flutter.outputs.flutter_installed == 'false'
         uses: subosito/flutter-action@v2
