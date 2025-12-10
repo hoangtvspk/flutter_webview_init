@@ -46,7 +46,7 @@ jobs:
         if: steps.check.outputs.should_run == 'true'
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
 
       - name: Restore cache (pub/gradle/pods)
         if: steps.check.outputs.should_run == 'true'
@@ -71,11 +71,11 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          mkdir -p lib/core/config
+          mkdir -p lib/config
 
-          echo "$ENV_DEV_CONTENT" > lib/core/config/.env.dev
-          echo "$ENV_STAGING_CONTENT" > lib/core/config/.env.staging
-          echo "$ENV_PROD_CONTENT" > lib/core/config/.env.prod
+          echo "$ENV_DEV_CONTENT" > lib/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/config/.env.prod
 
           if [[ -n "$GOOGLE_PLAY_JSON" ]]; then
             if [[ $(echo "$GOOGLE_PLAY_JSON" | tr -d '[:space:]' | cut -c1) == "{" ]]; then
@@ -106,7 +106,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
 
       - run: flutter pub get
 
@@ -179,7 +179,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
 
       - run: flutter pub get
 
@@ -249,7 +249,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
 
       - run: flutter pub get
 
