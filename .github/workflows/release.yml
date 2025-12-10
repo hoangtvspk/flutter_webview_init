@@ -1,13 +1,7 @@
 name: Build & Deploy (on branch push with "deploy" in commit)
 
 on:
-  push:
-    branches:
-      - dev
-      - staging
-      - main
-      - master
-  workflow_dispatch:
+  workflow_call:
 
 env:
   FLUTTER_CHANNEL: stable
@@ -18,7 +12,6 @@ env:
 jobs:
   prepare:
     name: Prepare (common artifacts/cache)
-    needs: [analyze, test]
     runs-on: [self-hosted, macos]
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
