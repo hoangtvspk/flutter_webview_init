@@ -354,7 +354,8 @@ class _WebViewContainerState extends State<WebViewContainer>
                                     webViewController: _webViewController!,
                                     url: _currentUrl,
                                     title1: 'Page not found',
-                                    title2: 'Page not found, please try again'))
+                                    title2:
+                                        'Page not found, please try again or check your internet connection'))
                             : const SizedBox(height: 0, width: 0),
                         _slowInternetPage
                             ? Center(
