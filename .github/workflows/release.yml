@@ -142,6 +142,13 @@ jobs:
         with:
           name: prepare-artifacts
 
+      - name: Debug signing files (dev)
+        run: |
+          echo "Workspace: $(pwd)"
+          ls -lah lib/config || true
+          ls -lah android || true
+          ls -lah android/app || true
+
       - run: flutter pub get
 
       - name: Build
@@ -216,6 +223,14 @@ jobs:
         with:
           name: prepare-artifacts
 
+      - name: Debug signing files (staging)
+        run: |
+          echo "Workspace: $(pwd)"
+          ls -lah android || true
+          ls -lah android/app || true
+          ls -lah android/key.properties || true
+          ls -lah android/app/app-release-key.jks || true
+
       - run: flutter pub get
 
       - name: Build
@@ -286,6 +301,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: prepare-artifacts
+
+      - name: Debug signing files (prod)
+        run: |
+          echo "Workspace: $(pwd)"
+          ls -lah android || true
+          ls -lah android/app || true
+          ls -lah android/key.properties || true
+          ls -lah android/app/app-release-key.jks || true
 
       - run: flutter pub get
 
