@@ -210,6 +210,12 @@ jobs:
         with:
           name: build-dev-artifacts
 
+      - name: Debug downloaded Android artifacts
+        run: |
+          echo "Workspace after download: $(pwd)"
+          ls -lah build/app/outputs || true
+          ls -lah build/app/outputs/flutter-apk || true
+
       - name: Install bundler (system Ruby)
         run: |
           ruby -v
