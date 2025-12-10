@@ -118,6 +118,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: prepare-artifacts
+          include-hidden-files: true
+          if-no-files-found: error
           path: |
             lib/config/.env.dev
             lib/config/.env.staging
