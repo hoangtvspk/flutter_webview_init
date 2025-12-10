@@ -5,12 +5,17 @@
     
     
       
-      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000121">
+      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000154">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="1: Switch to android get_android_version_number lane" time="0.00018">
+      <testcase classname="fastlane.lanes" name="1: Switch to android get_android_version_number lane" time="6.6e-05">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="2: Switch to android get_android_build_number lane" time="6.8e-05">
         
       </testcase>
     
