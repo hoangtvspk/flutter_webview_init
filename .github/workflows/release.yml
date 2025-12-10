@@ -228,9 +228,9 @@ jobs:
 
           if echo "$MSG" | grep -q "android"; then
             cd android
-            bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3
-            bundle exec fastlane android deploy environment:dev --verbose
+            bundle _2.7.2_ config set --local path vendor/bundle
+            bundle _2.7.2_ install --jobs 4 --retry 3
+            bundle _2.7.2_ exec fastlane android deploy environment:dev --verbose
             cd -
           else
             echo "Skip Android deploy: message missing 'android'"
@@ -238,9 +238,9 @@ jobs:
 
           if echo "$MSG" | grep -q "ios"; then
             cd ios
-            bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3
-            bundle exec fastlane ios deploy environment:dev --verbose
+            bundle _2.7.2_ config set --local path vendor/bundle
+            bundle _2.7.2_ install --jobs 4 --retry 3
+            bundle _2.7.2_ exec fastlane ios deploy environment:dev --verbose
             cd -
           else
             echo "Skip iOS deploy: message missing 'ios'"
@@ -320,15 +320,15 @@ jobs:
           MSG="${{ needs.prepare.outputs.message }}"
           if echo "$MSG" | grep -q "android"; then
             cd android
-            bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3
-            bundle exec fastlane android deploy environment:staging --verbose
+            bundle _2.7.2_ config set --local path vendor/bundle
+            bundle _2.7.2_ install --jobs 4 --retry 3
+            bundle _2.7.2_ exec fastlane android deploy environment:staging --verbose
           fi
           if echo "$MSG" | grep -q "ios"; then
             cd ios
-            bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3
-            bundle exec fastlane ios deploy environment:staging --verbose
+            bundle _2.7.2_ config set --local path vendor/bundle
+            bundle _2.7.2_ install --jobs 4 --retry 3
+            bundle _2.7.2_ exec fastlane ios deploy environment:staging --verbose
           fi
 
   # ============= PROD =============
@@ -405,13 +405,13 @@ jobs:
           MSG="${{ needs.prepare.outputs.message }}"
           if echo "$MSG" | grep -q "android"; then
             cd android
-            bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3
-            bundle exec fastlane android deploy environment:prod --verbose
+            bundle _2.7.2_ config set --local path vendor/bundle
+            bundle _2.7.2_ install --jobs 4 --retry 3
+            bundle _2.7.2_ exec fastlane android deploy environment:prod --verbose
           fi
           if echo "$MSG" | grep -q "ios"; then
             cd ios
-            bundle config set --local path vendor/bundle
-            bundle install --jobs 4 --retry 3
-            bundle exec fastlane ios deploy environment:prod --verbose
+            bundle _2.7.2_ config set --local path vendor/bundle
+            bundle _2.7.2_ install --jobs 4 --retry 3
+            bundle _2.7.2_ exec fastlane ios deploy environment:prod --verbose
           fi
