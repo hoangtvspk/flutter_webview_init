@@ -48,9 +48,10 @@ jobs:
         run: |
           set -euo pipefail
           # env files
-          echo "$ENV_DEV_CONTENT" > lib/core/config/.env.dev
-          echo "$ENV_STAGING_CONTENT" > lib/core/config/.env.staging
-          echo "$ENV_PROD_CONTENT" > lib/core/config/.env.prod
+          mkdir -p lib/config
+          echo "$ENV_DEV_CONTENT" > lib/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/config/.env.prod
 
           # Google Play JSON: if GOOGLE_PLAY_JSON looks like JSON (starts with '{'), write it,
           # otherwise treat it as a path and copy
@@ -112,9 +113,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -euo pipefail
-          echo "$ENV_DEV_CONTENT" > lib/core/config/.env.dev
-          echo "$ENV_STAGING_CONTENT" > lib/core/config/.env.staging
-          echo "$ENV_PROD_CONTENT" > lib/core/config/.env.prod
+          mkdir -p lib/config
+          echo "$ENV_DEV_CONTENT" > lib/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/config/.env.prod
           if [[ -n "${GOOGLE_PLAY_JSON:-}" ]]; then
             if [[ $(echo "$GOOGLE_PLAY_JSON" | tr -d '[:space:]' | cut -c1) == "{" ]]; then
               echo "$GOOGLE_PLAY_JSON" > google-play-service-account.json
