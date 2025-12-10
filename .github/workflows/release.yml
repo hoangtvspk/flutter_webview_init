@@ -2,6 +2,21 @@ name: Build & Deploy (on branch push with "deploy" in commit)
 
 on:
   workflow_call:
+    # Cần định nghĩa inputs/outputs để truyền dữ liệu từ ci.yml
+    outputs:
+      should_run:
+        description: "True if the commit message contains 'deploy'"
+        value: ${{ jobs.prepare.outputs.should_run }}
+      message:
+        description: "The commit message"
+        value: ${{ jobs.prepare.outputs.message }}
+    inputs:
+      commit_message:
+        required: true
+        type: string
+      commit_sha:
+        required: true
+        type: string # Cần SHA để checkout đúng commit
 
 env:
   FLUTTER_CHANNEL: stable
