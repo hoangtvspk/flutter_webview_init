@@ -44,7 +44,7 @@ class JsCommunicationService {
   /// Handle JavaScript postMessage events from WebView
   static Future<void> handlePostMessage({
     required InAppWebViewController controller,
-    required BuildContext context,
+    required String webViewUrl,
     required Function({
       required String name,
       required String url,
@@ -68,7 +68,6 @@ class JsCommunicationService {
             if (postedMessage.type == 'share') {
               final params = ShareParams(
                 title: postedMessage.messageData?.title ?? '',
-                text: postedMessage.messageData?.url ?? '',
                 uri: Uri.parse(postedMessage.messageData?.url ?? ''),
               );
               SharePlus.instance.share(
@@ -86,6 +85,7 @@ class JsCommunicationService {
           }
         },
       ));
+      controller.loadUrl(urlRequest: URLRequest(url: WebUri(webViewUrl)));
     }
   }
 

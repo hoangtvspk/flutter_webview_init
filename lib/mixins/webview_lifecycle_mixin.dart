@@ -102,8 +102,8 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
 
     await JsCommunicationService.handlePostMessage(
       controller: controller,
+      webViewUrl: _webViewUrl,
       // ignore: use_build_context_synchronously
-      context: context,
       onDownload: onDownload,
     );
   }

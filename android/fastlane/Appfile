@@ -1,0 +1,121 @@
+default_platform(:android)
+
+platform :android do
+  desc "Build and deploy Android app to Firebase and Play Store"
+  lane :deploy do |options|
+    env = options[:environment] || "dev"
+    gradle_task = env == "prod" ? "assembleRelease" : "assembleDebug"
+    firebase_app_id = options[:firebase_app_id] || ENV["FIREBASE_ANDROID_APP_ID"]
+
+    UI.message("🚀 Deploying Android app for environment: #{env}")
+
+    # Lấy version và build number
+    version_number = get_android_version_number
+    build_number = get_android_build_number
+
+    # Cập nhật version trong build.gradle
+    gradle_file_path = "../app/build.gradle"
+    gradle_content = File.read(gradle_file_path)
+    
+    # Cập nhật versionName
+    gradle_content = gradle_content.gsub(
+      /versionName\s+"[^"]+"/,
+      "versionName \"#{version_number}\""
+    )
+    
+    # Cập nhật versionCode
+    gradle_content = gradle_content.gsub(
+      /versionCode\s+\d+/,
+      "versionCode #{build_number}"
+    )
+    
+    File.write(gradle_file_path, gradle_content)
+
+    begin
+        gradle(task: gradle_task)
+    rescue => e
+        UI.error("❌ Failed to build Android app: #{e.message}")
+        return
+    end
+
+    apk_path = env == "prod" ? "../app/build/outputs/apk/release/app-release.apk" : "../app/build/outputs/apk/debug/app-debug.apk"
+
+    if firebase_app_id && File.exist?(apk_path)
+        begin
+            firebase_app_distribution(
+              app: firebase_app_id,
+              apk_path: apk_path,
+              groups: "beta-testers",
+              release_notes: "Deploying #{env} build - #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            UI.success("Uploaded to Firebase App Distribution successfully ✅")
+        rescue => e
+            UI.error("❌ Failed to upload to Firebase: #{e.message}")
+        end
+    else
+        UI.error("Firebase App ID not set or APK not found, skipping Firebase upload.")
+    end
+
+    json_key_file = "google-play-service-account.json"
+    if env == "prod"
+        begin
+            supply(track: "production", apk: apk_path, json_key: json_key_file)
+            UI.success("Uploaded to Play Store production track ✅")
+        rescue => e
+            UI.error("❌ Failed to upload to Play Store: #{e.message}")
+        end
+    else
+        begin
+            supply(track: "internal", apk: apk_path, json_key: json_key_file)
+            UI.success("Uploaded to Play Store internal track ✅")
+        rescue => e
+            UI.error("❌ Failed to upload to Play Store: #{e.message}")
+        end
+    end
+
+    UI.success("Android deploy lane completed 🎉")
+  end
+
+  private_lane :get_android_version_number do 
+    # Đọc version từ build.gradle
+    gradle_path = "../app/build.gradle"
+    unless File.exist?(gradle_path)
+      UI.error("❌ build.gradle not found")
+      return nil
+    end
+  
+    gradle_content = File.read(gradle_path)
+    version_match = gradle_content.match(/versionName\s+"([^"]+)"/)
+    
+    if version_match
+      version = version_match[1]
+      UI.message("📱 Android Version from build.gradle: #{version}")
+      return version
+    else
+      UI.error("❌ Could not find versionName in build.gradle")
+      return nil
+    end
+  end
+
+  private_lane :get_android_build_number do 
+    # Đọc build number từ build.gradle
+    gradle_path = "../app/build.gradle"
+    unless File.exist?(gradle_path)
+      UI.error("❌ build.gradle not found")
+      return 1
+    end
+  
+    gradle_content = File.read(gradle_path)
+    build_match = gradle_content.match(/versionCode\s+(\d+)/)
+    
+    if build_match
+      current_build = build_match[1].to_i
+      new_build = current_build + 1
+      UI.message("📱 Android Build number: #{new_build}")
+      return new_build
+    else
+      UI.error("❌ Could not find versionCode in build.gradle")
+      return 1
+    end
+  end
+end

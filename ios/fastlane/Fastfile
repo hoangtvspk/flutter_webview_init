@@ -1,0 +1,116 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and deploy iOS app to Firebase App Distribution and TestFlight/App Store"
+  lane :deploy do |options|
+    env = options[:environment] || "dev" # environment default dev
+    firebase_app_id = options[:firebase_app_id] 
+
+    UI.message("🚀 Deploying iOS app for environment: #{env}")
+
+    version_number = get_version_number
+    build_number = get_ios_build_number
+    increment_version_number(
+      version_number: version_number,
+      xcodeproj: "../Runner.xcodeproj"
+    )
+    increment_build_number(
+      build_number: build_number,
+      xcodeproj: "../Runner.xcodeproj"
+    )
+
+    scheme = get_scheme(env)
+    UI.message("Using scheme: #{scheme}")
+
+    # Build app
+    begin
+        gym(
+            scheme: scheme,
+            clean: true,
+            export_method: env == "prod" ? "app-store" : "ad-hoc",
+            output_directory: "../build/ios/ipa",
+            output_name: "App_#{env}.ipa"
+        )
+    rescue => e
+        UI.error("❌ Failed to build iOS app: #{e.message}")
+        return
+    end
+
+    ipa_path = "../build/ios/ipa/App_#{env}.ipa"
+
+    # Firebase App Distribution upload
+    if firebase_app_id && File.exist?(ipa_path)
+        begin
+            firebase_app_distribution(
+              app: firebase_app_id,
+              ipa_path: ipa_path,
+              groups: "beta-testers",
+              release_notes: "Deploying #{env} build - #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            UI.success("Uploaded to Firebase App Distribution successfully ✅")
+        rescue => e
+            UI.error("❌ Failed to upload to Firebase: #{e.message}")
+        end
+    else
+        UI.error("Firebase App ID not set or IPA not found, skipping Firebase upload.")
+    end
+
+    # Upload lên TestFlight hoặc App Store nếu là prod
+    if env == "prod"
+        begin
+            deliver(force: false, ipa: ipa_path)
+        rescue => e
+            UI.error("❌ Failed to upload to App Store: #{e.message}")
+        end
+    else
+        begin
+            pilot(skip_submission: true, ipa: ipa_path)
+        rescue => e
+            UI.error("❌ Failed to upload to TestFlight: #{e.message}")
+        end
+    end
+
+    UI.success("iOS deploy lane completed 🎉")
+    
+  end
+
+  private_lane :get_version_number do
+    # Đọc version từ Info.plist
+    info_plist_path = "../Runner/Info.plist"
+    unless File.exist?(info_plist_path)
+      UI.error("❌ Info.plist not found")
+      return nil
+    end
+  
+    # Sử dụng PlistBuddy để đọc version
+    version = sh("defaults read #{info_plist_path} CFBundleShortVersionString").strip
+    UI.message("📱 iOS Version from Info.plist: #{version}")
+    return version
+  rescue => e
+    UI.error("❌ Failed to read version from Info.plist: #{e.message}")
+    return nil
+  end
+
+  private_lane :get_ios_build_number do
+    # Đọc build number từ Info.plist
+    info_plist_path = "../Runner/Info.plist"
+    unless File.exist?(info_plist_path)
+      UI.error("❌ Info.plist not found")
+      return 1
+    end
+  
+    # Sử dụng PlistBuddy để đọc build number
+    current_build = sh("defaults read #{info_plist_path} CFBundleVersion").strip.to_i
+    new_build = current_build + 1
+    
+    UI.message("📱 iOS Build number: #{new_build}")
+    return new_build
+  rescue => e
+    UI.error("❌ Failed to read build number from Info.plist: #{e.message}")
+    return 1
+  end
+
+  private_lane :get_scheme do |env|
+    return env == "prod" ? "AppProdScheme" : "AppDevScheme"
+  end
+end

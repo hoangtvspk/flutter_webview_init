@@ -1,0 +1,151 @@
+name: Release (build & deploy on tag)
+
+on:
+  push:
+    tags:
+      - "**"
+  workflow_dispatch:
+
+env:
+  FLUTTER_CHANNEL: ${{ secrets.FLUTTER_CHANNEL || 'stable' }}
+
+jobs:
+  build_and_deploy:
+    name: Build and Deploy (on tag)
+    runs-on: [self-hosted, macos] # use your self-hosted mac runner labels
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full history to find branches containing commit
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+
+      - name: Setup Ruby & Bundler
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Install Gems (fastlane)
+        run: |
+          gem install bundler
+          bundle install || true
+
+      - name: Restore cache (pub & gradle & pods)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            android/.gradle
+            ~/.gradle
+            .pub-cache
+            ios/Pods
+          key: ${{ runner.os }}-build-${{ hashFiles('**/pubspec.yaml') }}-${{ hashFiles('android/**/gradle-wrapper.properties') }}-${{ hashFiles('ios/Podfile.lock') }}
+
+      - name: Prepare env files & google play json
+        env:
+          ENV_DEV_CONTENT: ${{ secrets.ENV_DEV_CONTENT }}
+          ENV_STAGING_CONTENT: ${{ secrets.ENV_STAGING_CONTENT }}
+          ENV_PROD_CONTENT: ${{ secrets.ENV_PROD_CONTENT }}
+          JSON_KEY_FILE_CONTENT: ${{ secrets.JSON_KEY_FILE_CONTENT }}
+        run: |
+          echo "$ENV_DEV_CONTENT" > lib/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/config/.env.prod
+          echo "$JSON_KEY_FILE_CONTENT" > android/google-play-service-account.json
+
+      - name: Determine ENVIRONMENT from branch containing this commit
+        id: detect_env
+        run: |
+          # find remote branches containing this commit
+          git fetch --prune
+          branches=$(git branch -r --contains "$GITHUB_SHA" || true)
+          echo "Branches that contain commit: $branches"
+          env=""
+
+          if echo "$branches" | grep -qE 'origin/(dev)$'; then env="dev"; fi
+          if echo "$branches" | grep -qE 'origin/(staging)$'; then env="staging"; fi
+          if echo "$branches" | grep -qE 'origin/(main|master)$'; then env="prod"; fi
+
+          # fallback: if multiple matched, prefer prod > staging > dev
+          if [ -z "$env" ]; then
+            echo "No matching branch found (dev/staging/main). Exiting with non-zero to avoid accidental deploy."
+            exit 1
+          fi
+
+          echo "ENVIRONMENT=$env" >> "$GITHUB_OUTPUT"
+          echo "detected environment: $env"
+
+      - name: Determine platforms from TAG
+        id: detect_platform
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Tag: $TAG"
+          platforms=""
+          if echo "$TAG" | grep -q "android-ios"; then platforms="android-ios"; fi
+          if [ -z "$platforms" ] && echo "$TAG" | grep -q "android"; then platforms="android"; fi
+          if [ -z "$platforms" ] && echo "$TAG" | grep -q "ios"; then platforms="ios"; fi
+          if [ -z "$platforms" ]; then
+            echo "No platform indicator found in tag (need 'android' or 'ios' or 'android-ios'). Exiting."
+            exit 1
+          fi
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+          echo "Detected platforms: $platforms"
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build for Android (if required)
+        if: contains(needs?, '') == false || always() # placeholder; actual condition below
+        run: |
+          # run only if platforms include 'android'
+          if echo "${{ steps.detect_platform.outputs.platforms }}" | grep -q "android"; then
+            echo "Building Android AAB for environment ${{ steps.detect_env.outputs.ENVIRONMENT }}"
+            make build-app-bundle-${{ steps.detect_env.outputs.ENVIRONMENT }}
+          else
+            echo "Skipping Android build"
+          fi
+
+      - name: Build for iOS (if required)
+        run: |
+          if echo "${{ steps.detect_platform.outputs.platforms }}" | grep -q "ios"; then
+            echo "Building iOS IPA for environment ${{ steps.detect_env.outputs.ENVIRONMENT }}"
+            make build-ios-${{ steps.detect_env.outputs.ENVIRONMENT }}
+          else
+            echo "Skipping iOS build"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            build/app/outputs/bundle/release/*.aab
+            build/ios/ipa/*.ipa
+
+      - name: Deploy (Fastlane) for platforms found
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_APP_ID_PARAM: ${{ secrets.FIREBASE_APP_ID }}
+        run: |
+          platforms="${{ steps.detect_platform.outputs.platforms }}"
+          envname="${{ steps.detect_env.outputs.ENVIRONMENT }}"
+          echo "Will deploy platforms: $platforms for environment: $envname"
+
+          if echo "$platforms" | grep -q "android"; then
+            echo "Deploying Android via fastlane..."
+            cd android
+            bundle exec fastlane android deploy environment:${envname} firebase_app_id=${FIREBASE_APP_ID}
+            cd ..
+          fi
+
+          if echo "$platforms" | grep -q "ios"; then
+            echo "Deploying iOS via fastlane..."
+            cd ios
+            bundle exec fastlane ios deploy environment:${envname} firebase_app_id=${FIREBASE_APP_ID}
+            cd ..
+          fi
