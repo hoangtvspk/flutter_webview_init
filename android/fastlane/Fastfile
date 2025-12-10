@@ -4,9 +4,8 @@ platform :android do
   desc "Build and deploy Android app to Firebase and Play Store"
   lane :deploy do |options|
     env = options[:environment] || "dev"
-    gradle_task = env == "prod" ? "assembleRelease" : "assembleDebug"
-    firebase_app_id = options[:firebase_app_id] || ENV["FIREBASE_ANDROID_APP_ID"]
-    skip_build =  "true"
+    # gradle_task = env == "prod" ? "assembleRelease" : "assembleDebug"
+    firebase_app_id = ENV["FIREBASE_ANDROID_APP_ID"] 
 
     UI.message("🚀 Deploying Android app for environment: #{env}")
 
@@ -32,72 +31,89 @@ platform :android do
     
     File.write(gradle_file_path, gradle_content)
 
-    unless skip_build
-      begin
-          gradle(task: gradle_task)
-      rescue => e
-          UI.error("❌ Failed to build Android app: #{e.message}")
-          return
-      end
+    # begin
+    #     gradle(task: gradle_task)
+    # rescue => e
+    #     UI.error("❌ Failed to build Android app: #{e.message}")
+    #     next
+    # end
+
+    relative = "../../"
+    absolute = File.expand_path(relative, __dir__)
+
+    UI.message "📍 __dir__ = #{__dir__}"
+    UI.message "📍 Dir.pwd = #{Dir.pwd}"
+    UI.message "📍 '../../' resolved = #{absolute}"
+
+    path = File.expand_path("../../build/app/outputs/bundle", __dir__)
+    UI.message "📂 ../../build/app/outputs/bundle: #{path}"
+
+    if File.directory?(path)
+      UI.message "📁 Contents of #{path}:"
+      Dir.entries(path).each { |entry| UI.message "  - #{entry}" }
     else
-      UI.message("⏭️ Bỏ qua bước build, dùng artifact có sẵn")
+      UI.error "❌ Folder not found: #{path}"
     end
 
-    apk_path = env == "prod" ? "../app/build/outputs/apk/release/app-release.apk" : "../app/build/outputs/apk/debug/app-debug.apk"
 
-    # Log thư mục đầu ra để debug artifact
-    begin
-      UI.message("📂 Listing release dir: #{File.expand_path('../app/build/outputs/apk/release', __dir__)}")
-      Dir.glob("../app/build/outputs/apk/release/**/*").each { |f| UI.message("  - #{f}") }
-    rescue => e
-      UI.message("⚠️ Không thể liệt kê release: #{e.message}")
-    end
-    begin
-      UI.message("📂 Listing debug dir: #{File.expand_path('../app/build/outputs/apk/debug', __dir__)}")
-      Dir.glob("../app/build/outputs/apk/debug/**/*").each { |f| UI.message("  - #{f}") }
-    rescue => e
-      UI.message("⚠️ Không thể liệt kê debug: #{e.message}")
+    pathRelease = File.expand_path("../../build/app/outputs/flutter-apk", __dir__)
+    UI.message "📂 ../../build/app/outputs/flutter-apk: #{pathRelease}"
+
+    if File.directory?(pathRelease)
+      UI.message "📁 Contents of #{pathRelease}:"
+      Dir.entries(pathRelease).each { |entry| UI.message "  - #{entry}" }
+    else
+      UI.error "❌ Folder not found: #{pathRelease}"
     end
 
-    unless File.exist?(apk_path)
-        UI.error("❌ Không tìm thấy APK ở #{apk_path}. Nếu skip build thì cần cung cấp sẵn file.")
-        return
-    end
+    
+
+    aab_path = File.expand_path("../../build/app/outputs/bundle/#{env}Release/app-#{env}-release.aab", __dir__)
+    apk_path = File.expand_path("../../build/app/outputs/flutter-apk/app-#{env}-release.apk", __dir__)
+    UI.message("📦 Using AAB path: #{aab_path}")
+    UI.message("📦 Using APK path: #{apk_path}")
 
     if firebase_app_id && File.exist?(apk_path)
-        begin
-            firebase_app_distribution(
-              app: firebase_app_id,
-              apk_path: apk_path,
-              groups: "beta-testers",
-              release_notes: "Deploying #{env} build - #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            UI.success("Uploaded to Firebase App Distribution successfully ✅")
-        rescue => e
-            UI.error("❌ Failed to upload to Firebase: #{e.message}")
-        end
+      begin
+        firebase_app_distribution(
+          app: firebase_app_id,
+          android_artifact_path: apk_path,
+          android_artifact_type: "APK",
+          groups: "beta-testers",
+          release_notes: "Deploying #{env} build - #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        UI.success("✅ Uploaded to Firebase App Distribution successfully")
+      rescue => e
+        UI.error("❌ Failed to upload to Firebase: #{e.message}")
+      end
     else
-        UI.error("Firebase App ID not set or APK not found, skipping Firebase upload.")
+      UI.error("⚠️ Firebase App ID not set or AAB not found, skipping Firebase upload.")
     end
 
-    json_key_file = "google-play-service-account.json"
-    if env == "prod"
-        begin
-            supply(track: "production", apk: apk_path, json_key: json_key_file)
-            UI.success("Uploaded to Play Store production track ✅")
-        rescue => e
-            UI.error("❌ Failed to upload to Play Store: #{e.message}")
-        end
-    else
-        begin
-            supply(track: "internal", apk: apk_path, json_key: json_key_file)
-            UI.success("Uploaded to Play Store internal track ✅")
-        rescue => e
-            UI.error("❌ Failed to upload to Play Store: #{e.message}")
-        end
+    # 📤 Google Play Upload
+    json_key_file = File.expand_path("../../google-play-service-account.json", __dir__)
+
+    begin
+      track = env == "prod" ? "production" : "beta"
+      UI.message("Debug info:")
+      UI.message("Current directory: #{Dir.pwd}")
+      UI.message("JSON file path: #{json_key_file}")
+      UI.message("JSON file exists? #{File.exist?(json_key_file)}")
+      UI.message("JSON file content:")
+      UI.message(File.read(json_key_file))
+      
+      supply(
+        track: track,
+        aab: aab_path,
+        json_key: json_key_file
+      )
+      UI.success("✅ Uploaded to Play Store #{track} track successfully")
+    rescue => e
+      UI.error("❌ Failed to upload to Play Store: #{e.message}")
+      UI.error("Full error: #{e.backtrace.join("\n")}")
     end
 
-    UI.success("Android deploy lane completed 🎉")
+    UI.success("🎉 Android deploy lane completed")
   end
 
   private_lane :get_android_version_number do 
