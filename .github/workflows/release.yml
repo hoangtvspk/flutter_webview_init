@@ -194,8 +194,9 @@ jobs:
         with:
           name: build-dev-artifacts
           path: |
-            build/app/outputs/**/*.aab
-            build/app/outputs/**/*.apk
+            build/app/outputs/flutter-apk/
+            build/app/outputs/apk/
+            build/app/outputs/bundle/
             build/ios/ipa/*.ipa
 
   deploy-dev:
