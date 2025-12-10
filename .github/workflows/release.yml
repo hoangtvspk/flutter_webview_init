@@ -48,17 +48,6 @@ jobs:
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
 
-      - name: Restore cache (pub/gradle/pods)
-        if: steps.check.outputs.should_run == 'true'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-            android/.gradle
-            ~/.gradle
-            ios/Pods
-          key: ${{ runner.os }}-${{ hashFiles('**/pubspec.yaml') }}-${{ hashFiles('android/**/gradle-wrapper.properties') }}-${{ hashFiles('ios/Podfile.lock') }}
-
       - name: Prepare env files, google play json & keystore
         if: steps.check.outputs.should_run == 'true'
         env:
