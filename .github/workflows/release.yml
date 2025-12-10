@@ -194,10 +194,15 @@ jobs:
         with:
           name: build-dev-artifacts
           path: |
-            build/app/outputs/flutter-apk/
-            build/app/outputs/apk/
-            build/app/outputs/bundle/
+            build/app/outputs/**/*.aab
+            build/app/outputs/**/*.apk
             build/ios/ipa/*.ipa
+            lib/config/.env.dev
+            lib/config/.env.staging
+            lib/config/.env.prod
+            google-play-service-account.json
+            android/app/app-release-key.jks
+            android/key.properties
 
   deploy-dev:
     name: Deploy (dev)
