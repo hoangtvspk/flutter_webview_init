@@ -210,11 +210,11 @@ jobs:
         with:
           name: build-dev-artifacts
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-
-      - run: gem install bundler && bundle install || true
+      - name: Install bundler (system Ruby)
+        run: |
+          ruby -v
+          gem install bundler --user-install || gem install bundler
+          echo "$(ruby -e 'print Gem.user_dir')/bin" >> "$GITHUB_PATH"
 
       - name: Deploy via Fastlane
         env:
@@ -224,10 +224,16 @@ jobs:
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
           if echo "$MSG" | grep -q "android"; then
-            cd android && bundle exec fastlane android deploy environment:dev
+            cd android
+            bundle config set --local path vendor/bundle
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane android deploy environment:dev
           fi
           if echo "$MSG" | grep -q "ios"; then
-            cd ios && bundle exec fastlane ios deploy environment:dev
+            cd ios
+            bundle config set --local path vendor/bundle
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane ios deploy environment:dev
           fi
 
   # ============= STAGING =============
@@ -289,11 +295,11 @@ jobs:
         with:
           name: build-staging-artifacts
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-
-      - run: gem install bundler && bundle install || true
+      - name: Install bundler (system Ruby)
+        run: |
+          ruby -v
+          gem install bundler --user-install || gem install bundler
+          echo "$(ruby -e 'print Gem.user_dir')/bin" >> "$GITHUB_PATH"
 
       - name: Deploy via Fastlane
         env:
@@ -303,10 +309,16 @@ jobs:
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
           if echo "$MSG" | grep -q "android"; then
-            cd android && bundle exec fastlane android deploy environment:staging
+            cd android
+            bundle config set --local path vendor/bundle
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane android deploy environment:staging
           fi
           if echo "$MSG" | grep -q "ios"; then
-            cd ios && bundle exec fastlane ios deploy environment:staging
+            cd ios
+            bundle config set --local path vendor/bundle
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane ios deploy environment:staging
           fi
 
   # ============= PROD =============
@@ -368,11 +380,11 @@ jobs:
         with:
           name: build-prod-artifacts
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-
-      - run: gem install bundler && bundle install || true
+      - name: Install bundler (system Ruby)
+        run: |
+          ruby -v
+          gem install bundler --user-install || gem install bundler
+          echo "$(ruby -e 'print Gem.user_dir')/bin" >> "$GITHUB_PATH"
 
       - name: Deploy via Fastlane
         env:
@@ -382,8 +394,14 @@ jobs:
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
           if echo "$MSG" | grep -q "android"; then
-            cd android && bundle exec fastlane android deploy environment:prod
+            cd android
+            bundle config set --local path vendor/bundle
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane android deploy environment:prod
           fi
           if echo "$MSG" | grep -q "ios"; then
-            cd ios && bundle exec fastlane ios deploy environment:prod
+            cd ios
+            bundle config set --local path vendor/bundle
+            bundle install --jobs 4 --retry 3
+            bundle exec fastlane ios deploy environment:prod
           fi
