@@ -42,8 +42,27 @@ jobs:
             echo "Commit message does not contain 'deploy' => skipping build/deploy"
           fi
 
-      - name: Setup Flutter
+      - name: Check Flutter installed
         if: steps.check.outputs.should_run == 'true'
+        id: check_flutter
+        run: |
+          if command -v flutter &> /dev/null; then
+            echo "flutter_installed=true" >> $GITHUB_OUTPUT
+            echo "✓ Flutter đã được cài đặt sẵn trên runner"
+          else
+            echo "flutter_installed=false" >> $GITHUB_OUTPUT
+            echo "⚠ Flutter chưa có trên runner"
+          fi
+
+      - name: Setup Flutter (from runner)
+        if: steps.check.outputs.should_run == 'true' && steps.check_flutter.outputs.flutter_installed == 'true'
+        run: |
+          flutter --version
+          flutter channel ${{ env.FLUTTER_CHANNEL }}
+          flutter upgrade
+
+      - name: Setup Flutter (download)
+        if: steps.check.outputs.should_run == 'true' && steps.check_flutter.outputs.flutter_installed == 'false'
         uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
@@ -93,7 +112,27 @@ jobs:
     if: needs.prepare.outputs.should_run == 'true' && github.ref == 'refs/heads/dev'
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Check Flutter installed
+        id: check_flutter
+        run: |
+          if command -v flutter &> /dev/null; then
+            echo "flutter_installed=true" >> $GITHUB_OUTPUT
+            echo "✓ Flutter đã được cài đặt sẵn trên runner"
+          else
+            echo "flutter_installed=false" >> $GITHUB_OUTPUT
+            echo "⚠ Flutter chưa có trên runner"
+          fi
+
+      - name: Setup Flutter (from runner)
+        if: steps.check_flutter.outputs.flutter_installed == 'true'
+        run: |
+          flutter --version
+          flutter channel ${{ env.FLUTTER_CHANNEL }}
+          flutter upgrade
+
+      - name: Setup Flutter (download)
+        if: steps.check_flutter.outputs.flutter_installed == 'false'
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
 
@@ -166,7 +205,27 @@ jobs:
     if: needs.prepare.outputs.should_run == 'true' && github.ref == 'refs/heads/staging'
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Check Flutter installed
+        id: check_flutter
+        run: |
+          if command -v flutter &> /dev/null; then
+            echo "flutter_installed=true" >> $GITHUB_OUTPUT
+            echo "✓ Flutter đã được cài đặt sẵn trên runner"
+          else
+            echo "flutter_installed=false" >> $GITHUB_OUTPUT
+            echo "⚠ Flutter chưa có trên runner"
+          fi
+
+      - name: Setup Flutter (from runner)
+        if: steps.check_flutter.outputs.flutter_installed == 'true'
+        run: |
+          flutter --version
+          flutter channel ${{ env.FLUTTER_CHANNEL }}
+          flutter upgrade
+
+      - name: Setup Flutter (download)
+        if: steps.check_flutter.outputs.flutter_installed == 'false'
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
 
@@ -236,7 +295,27 @@ jobs:
     if: needs.prepare.outputs.should_run == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - name: Check Flutter installed
+        id: check_flutter
+        run: |
+          if command -v flutter &> /dev/null; then
+            echo "flutter_installed=true" >> $GITHUB_OUTPUT
+            echo "✓ Flutter đã được cài đặt sẵn trên runner"
+          else
+            echo "flutter_installed=false" >> $GITHUB_OUTPUT
+            echo "⚠ Flutter chưa có trên runner"
+          fi
+
+      - name: Setup Flutter (from runner)
+        if: steps.check_flutter.outputs.flutter_installed == 'true'
+        run: |
+          flutter --version
+          flutter channel ${{ env.FLUTTER_CHANNEL }}
+          flutter upgrade
+
+      - name: Setup Flutter (download)
+        if: steps.check_flutter.outputs.flutter_installed == 'false'
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
 
