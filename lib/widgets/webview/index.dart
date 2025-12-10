@@ -355,7 +355,7 @@ class _WebViewContainerState extends State<WebViewContainer>
                                     url: _currentUrl,
                                     title1: 'Page not found',
                                     title2:
-                                        'Page not found, please try again or check your internet connection'))
+                                        'Page not found, please try again or check your internet connectionnn'))
                             : const SizedBox(height: 0, width: 0),
                         _slowInternetPage
                             ? Center(
