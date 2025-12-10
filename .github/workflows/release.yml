@@ -2,11 +2,11 @@ name: Build & Deploy (on branch push with "deploy" in commit)
 
 on:
   push:
-  branches:
-    - dev
-    - staging
-    - main
-    - master
+    branches:
+      - dev
+      - staging
+      - main
+      - master
   workflow_dispatch:
 
 env:
