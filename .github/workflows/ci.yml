@@ -136,3 +136,4 @@ jobs:
     with:
       commit_message: ${{ github.event.head_commit.message }}
       commit_sha: ${{ github.sha }}
+    secrets: inherit

@@ -105,6 +105,27 @@ jobs:
             echo "storeFile=app-release-key.jks" >> android/key.properties
           fi
 
+      - name: Log secrets (masked)
+        if: steps.check.outputs.should_run == 'true'
+        env:
+          ENV_DEV_CONTENT: ${{ secrets.ENV_DEV_CONTENT }}
+          ENV_STAGING_CONTENT: ${{ secrets.ENV_STAGING_CONTENT }}
+          ENV_PROD_CONTENT: ${{ secrets.ENV_PROD_CONTENT }}
+          GOOGLE_PLAY_JSON: ${{ secrets.GOOGLE_PLAY_JSON }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "ENV_DEV_CONTENT length: ${#ENV_DEV_CONTENT}"
+          echo "ENV_STAGING_CONTENT length: ${#ENV_STAGING_CONTENT}"
+          echo "ENV_PROD_CONTENT length: ${#ENV_PROD_CONTENT}"
+          echo "GOOGLE_PLAY_JSON present: $([[ -n "$GOOGLE_PLAY_JSON" ]] && echo yes || echo no)"
+          echo "KEYSTORE_BASE64 length: $(echo -n "$KEYSTORE_BASE64" | wc -c)"
+          echo "KEYSTORE_PASSWORD length: ${#KEYSTORE_PASSWORD}"
+          echo "KEY_PASSWORD length: ${#KEY_PASSWORD}"
+          echo "KEY_ALIAS length: ${#KEY_ALIAS}"
+
       - name: Debug prepared files
         if: steps.check.outputs.should_run == 'true'
         run: |
