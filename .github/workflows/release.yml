@@ -200,7 +200,7 @@ jobs:
 
   deploy-dev:
     name: Deploy (dev)
-    needs: build-dev
+    needs: [prepare, build-dev]
     environment: dev
     runs-on: [self-hosted, macos]
     if: needs.prepare.outputs.should_run == 'true'
