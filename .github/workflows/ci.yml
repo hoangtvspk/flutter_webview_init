@@ -1,0 +1,138 @@
+name: CI - Analyze & Test
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+env:
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: [self-hosted, macos] # ensure your mac runner has label 'macos' or change accordingly
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+
+      - name: Restore cache (pub & dart_tool)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+
+      - name: Prepare env & keystore & google play json
+        env:
+          ENV_DEV_CONTENT: ${{ secrets.ENV_DEV_CONTENT }}
+          ENV_STAGING_CONTENT: ${{ secrets.ENV_STAGING_CONTENT }}
+          ENV_PROD_CONTENT: ${{ secrets.ENV_PROD_CONTENT }}
+          GOOGLE_PLAY_JSON: ${{ secrets.GOOGLE_PLAY_JSON }} # can be raw JSON content or a path on runner
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }} # base64 keystore content
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # env files
+          echo "$ENV_DEV_CONTENT" > lib/core/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/core/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/core/config/.env.prod
+
+          # Google Play JSON: if GOOGLE_PLAY_JSON looks like JSON (starts with '{'), write it,
+          # otherwise treat it as a path and copy
+          if [[ -n "${GOOGLE_PLAY_JSON:-}" ]]; then
+            if [[ $(echo "$GOOGLE_PLAY_JSON" | tr -d '[:space:]' | cut -c1) == "{" ]]; then
+              echo "$GOOGLE_PLAY_JSON" > google-play-service-account.json
+            else
+              cp "$GOOGLE_PLAY_JSON" google-play-service-account.json || echo "No file at path $GOOGLE_PLAY_JSON"
+            fi
+            # print first line for debug (avoid printing secrets)
+            head -n 1 google-play-service-account.json || true
+          fi
+
+          # keystore
+          if [[ -n "${KEYSTORE_BASE64:-}" ]]; then
+            mkdir -p android/app
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/app-release-key.jks
+            echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+            echo "storeFile=app-release-key.jks" >> android/key.properties
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Run analyze (make analyze)
+        run: make analyze
+
+  test:
+    name: Test
+    needs: analyze
+    runs-on: [self-hosted, macos]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+
+      - name: Restore cache (pub & dart_tool)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+
+      - name: Prepare env & google play json & keystore
+        env:
+          ENV_DEV_CONTENT: ${{ secrets.ENV_DEV_CONTENT }}
+          ENV_STAGING_CONTENT: ${{ secrets.ENV_STAGING_CONTENT }}
+          ENV_PROD_CONTENT: ${{ secrets.ENV_PROD_CONTENT }}
+          GOOGLE_PLAY_JSON: ${{ secrets.GOOGLE_PLAY_JSON }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          echo "$ENV_DEV_CONTENT" > lib/core/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/core/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/core/config/.env.prod
+          if [[ -n "${GOOGLE_PLAY_JSON:-}" ]]; then
+            if [[ $(echo "$GOOGLE_PLAY_JSON" | tr -d '[:space:]' | cut -c1) == "{" ]]; then
+              echo "$GOOGLE_PLAY_JSON" > google-play-service-account.json
+            else
+              cp "$GOOGLE_PLAY_JSON" google-play-service-account.json || true
+            fi
+          fi
+          if [[ -n "${KEYSTORE_BASE64:-}" ]]; then
+            mkdir -p android/app
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/app-release-key.jks
+            echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+            echo "storeFile=app-release-key.jks" >> android/key.properties
+          fi
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Run tests (make test)
+        run: make test

@@ -1,151 +1,309 @@
-name: Release (build & deploy on tag)
+name: Build & Deploy (on branch push with "deploy" in commit)
 
 on:
   push:
-    tags:
-      - "**"
+    branches:
+      - dev
+      - staging
+      - main
+      - master
   workflow_dispatch:
 
 env:
-  FLUTTER_CHANNEL: ${{ secrets.FLUTTER_CHANNEL || 'stable' }}
+  FLUTTER_CHANNEL: stable
+  FASTLANE_HIDE_TIMESTAMP: "true"
+  FASTLANE_SKIP_UPDATE_CHECK: "true"
+  FASTLANE_DEBUG: "true"
 
 jobs:
-  build_and_deploy:
-    name: Build and Deploy (on tag)
-    runs-on: [self-hosted, macos] # use your self-hosted mac runner labels
-    timeout-minutes: 180
+  prepare:
+    name: Prepare (common artifacts/cache)
+    runs-on: [self-hosted, macos]
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      message: ${{ steps.check.outputs.message }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # need full history to find branches containing commit
+          fetch-depth: 1
+
+      - name: Check commit message contains 'deploy'
+        id: check
+        run: |
+          MSG="${{ github.event.head_commit.message || '' }}"
+          echo "Commit: $MSG"
+          if echo "$MSG" | grep -q "deploy"; then
+            echo "::set-output name=should_run::true"
+            echo "::set-output name=message::$MSG"
+          else
+            echo "::set-output name=should_run::false"
+            echo "::set-output name=message::$MSG"
+            echo "Commit message does not contain 'deploy' => skipping build/deploy"
+          fi
 
       - name: Setup Flutter
+        if: steps.check.outputs.should_run == 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_CHANNEL }}
 
-      - name: Setup Ruby & Bundler
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-
-      - name: Install Gems (fastlane)
-        run: |
-          gem install bundler
-          bundle install || true
-
-      - name: Restore cache (pub & gradle & pods)
+      - name: Restore cache (pub/gradle/pods)
+        if: steps.check.outputs.should_run == 'true'
         uses: actions/cache@v4
         with:
           path: |
             ~/.pub-cache
             android/.gradle
             ~/.gradle
-            .pub-cache
             ios/Pods
-          key: ${{ runner.os }}-build-${{ hashFiles('**/pubspec.yaml') }}-${{ hashFiles('android/**/gradle-wrapper.properties') }}-${{ hashFiles('ios/Podfile.lock') }}
+          key: ${{ runner.os }}-${{ hashFiles('**/pubspec.yaml') }}-${{ hashFiles('android/**/gradle-wrapper.properties') }}-${{ hashFiles('ios/Podfile.lock') }}
 
-      - name: Prepare env files & google play json
+      - name: Prepare env files, google play json & keystore
+        if: steps.check.outputs.should_run == 'true'
         env:
           ENV_DEV_CONTENT: ${{ secrets.ENV_DEV_CONTENT }}
           ENV_STAGING_CONTENT: ${{ secrets.ENV_STAGING_CONTENT }}
           ENV_PROD_CONTENT: ${{ secrets.ENV_PROD_CONTENT }}
-          JSON_KEY_FILE_CONTENT: ${{ secrets.JSON_KEY_FILE_CONTENT }}
+          GOOGLE_PLAY_JSON: ${{ secrets.GOOGLE_PLAY_JSON }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          echo "$ENV_DEV_CONTENT" > lib/config/.env.dev
-          echo "$ENV_STAGING_CONTENT" > lib/config/.env.staging
-          echo "$ENV_PROD_CONTENT" > lib/config/.env.prod
-          echo "$JSON_KEY_FILE_CONTENT" > android/google-play-service-account.json
+          mkdir -p lib/core/config
 
-      - name: Determine ENVIRONMENT from branch containing this commit
-        id: detect_env
-        run: |
-          # find remote branches containing this commit
-          git fetch --prune
-          branches=$(git branch -r --contains "$GITHUB_SHA" || true)
-          echo "Branches that contain commit: $branches"
-          env=""
+          echo "$ENV_DEV_CONTENT" > lib/core/config/.env.dev
+          echo "$ENV_STAGING_CONTENT" > lib/core/config/.env.staging
+          echo "$ENV_PROD_CONTENT" > lib/core/config/.env.prod
 
-          if echo "$branches" | grep -qE 'origin/(dev)$'; then env="dev"; fi
-          if echo "$branches" | grep -qE 'origin/(staging)$'; then env="staging"; fi
-          if echo "$branches" | grep -qE 'origin/(main|master)$'; then env="prod"; fi
-
-          # fallback: if multiple matched, prefer prod > staging > dev
-          if [ -z "$env" ]; then
-            echo "No matching branch found (dev/staging/main). Exiting with non-zero to avoid accidental deploy."
-            exit 1
+          if [[ -n "$GOOGLE_PLAY_JSON" ]]; then
+            if [[ $(echo "$GOOGLE_PLAY_JSON" | tr -d '[:space:]' | cut -c1) == "{" ]]; then
+              echo "$GOOGLE_PLAY_JSON" > google-play-service-account.json
+            else
+              cp "$GOOGLE_PLAY_JSON" google-play-service-account.json || true
+            fi
           fi
 
-          echo "ENVIRONMENT=$env" >> "$GITHUB_OUTPUT"
-          echo "detected environment: $env"
+          if [[ -n "$KEYSTORE_BASE64" ]]; then
+            mkdir -p android/app
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/app-release-key.jks
 
-      - name: Determine platforms from TAG
-        id: detect_platform
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          echo "Tag: $TAG"
-          platforms=""
-          if echo "$TAG" | grep -q "android-ios"; then platforms="android-ios"; fi
-          if [ -z "$platforms" ] && echo "$TAG" | grep -q "android"; then platforms="android"; fi
-          if [ -z "$platforms" ] && echo "$TAG" | grep -q "ios"; then platforms="ios"; fi
-          if [ -z "$platforms" ]; then
-            echo "No platform indicator found in tag (need 'android' or 'ios' or 'android-ios'). Exiting."
-            exit 1
-          fi
-          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
-          echo "Detected platforms: $platforms"
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build for Android (if required)
-        if: contains(needs?, '') == false || always() # placeholder; actual condition below
-        run: |
-          # run only if platforms include 'android'
-          if echo "${{ steps.detect_platform.outputs.platforms }}" | grep -q "android"; then
-            echo "Building Android AAB for environment ${{ steps.detect_env.outputs.ENVIRONMENT }}"
-            make build-app-bundle-${{ steps.detect_env.outputs.ENVIRONMENT }}
-          else
-            echo "Skipping Android build"
+            echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+            echo "storeFile=app-release-key.jks" >> android/key.properties
           fi
 
-      - name: Build for iOS (if required)
-        run: |
-          if echo "${{ steps.detect_platform.outputs.platforms }}" | grep -q "ios"; then
-            echo "Building iOS IPA for environment ${{ steps.detect_env.outputs.ENVIRONMENT }}"
-            make build-ios-${{ steps.detect_env.outputs.ENVIRONMENT }}
-          else
-            echo "Skipping iOS build"
-          fi
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+  # ============= DEV =============
+  build-dev:
+    name: Build (dev)
+    needs: prepare
+    environment: dev
+    runs-on: [self-hosted, macos]
+    if: needs.prepare.outputs.should_run == 'true' && github.ref == 'refs/heads/dev'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
-          name: build-artifacts
+          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+
+      - run: flutter pub get
+
+      - name: Build
+        run: |
+          MSG="${{ needs.prepare.outputs.message }}"
+          echo "Building for: $MSG"
+          if echo "$MSG" | grep -q "android-ios"; then
+            make build-appbundle-dev
+            make build-android-dev
+            make build-ipa-dev
+          elif echo "$MSG" | grep -q "android"; then
+            make build-appbundle-dev
+            make build-android-dev
+          elif echo "$MSG" | grep -q "ios"; then
+            make build-ipa-dev
+          else
+            echo "No platform in commit message => skip"
+            exit 0
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-dev-artifacts
           path: |
-            build/app/outputs/bundle/release/*.aab
+            build/app/outputs/**/*.aab
+            build/app/outputs/**/*.apk
             build/ios/ipa/*.ipa
 
-      - name: Deploy (Fastlane) for platforms found
-        env:
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_APP_ID_PARAM: ${{ secrets.FIREBASE_APP_ID }}
-        run: |
-          platforms="${{ steps.detect_platform.outputs.platforms }}"
-          envname="${{ steps.detect_env.outputs.ENVIRONMENT }}"
-          echo "Will deploy platforms: $platforms for environment: $envname"
+  deploy-dev:
+    name: Deploy (dev)
+    needs: build-dev
+    environment: dev
+    runs-on: [self-hosted, macos]
+    if: needs.prepare.outputs.should_run == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-dev-artifacts
 
-          if echo "$platforms" | grep -q "android"; then
-            echo "Deploying Android via fastlane..."
-            cd android
-            bundle exec fastlane android deploy environment:${envname} firebase_app_id=${FIREBASE_APP_ID}
-            cd ..
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - run: gem install bundler && bundle install || true
+
+      - name: Deploy via Fastlane
+        env:
+          ENVIRONMENT: dev
+          FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
+        run: |
+          MSG="${{ needs.prepare.outputs.message }}"
+          if echo "$MSG" | grep -q "android"; then
+            cd android && bundle exec fastlane android deploy environment:dev
+          fi
+          if echo "$MSG" | grep -q "ios"; then
+            cd ios && bundle exec fastlane ios deploy environment:dev
           fi
 
-          if echo "$platforms" | grep -q "ios"; then
-            echo "Deploying iOS via fastlane..."
-            cd ios
-            bundle exec fastlane ios deploy environment:${envname} firebase_app_id=${FIREBASE_APP_ID}
-            cd ..
+  # ============= STAGING =============
+  build-staging:
+    name: Build (staging)
+    needs: prepare
+    environment: staging
+    runs-on: [self-hosted, macos]
+    if: needs.prepare.outputs.should_run == 'true' && github.ref == 'refs/heads/staging'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+
+      - run: flutter pub get
+
+      - name: Build
+        run: |
+          MSG="${{ needs.prepare.outputs.message }}"
+          if echo "$MSG" | grep -q "android-ios"; then
+            make build-appbundle-staging
+            make build-android-staging
+            make build-ipa-staging
+          elif echo "$MSG" | grep -q "android"; then
+            make build-appbundle-staging
+            make build-android-staging
+          elif echo "$MSG" | grep -q "ios"; then
+            make build-ipa-staging
+          else
+            exit 0
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-staging-artifacts
+          path: |
+            build/app/outputs/**/*.aab
+            build/ios/ipa/*.ipa
+
+  deploy-staging:
+    name: Deploy (staging)
+    needs: build-staging
+    environment: staging
+    runs-on: [self-hosted, macos]
+    if: needs.prepare.outputs.should_run == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-staging-artifacts
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - run: gem install bundler && bundle install || true
+
+      - name: Deploy via Fastlane
+        env:
+          ENVIRONMENT: staging
+          FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
+        run: |
+          MSG="${{ needs.prepare.outputs.message }}"
+          if echo "$MSG" | grep -q "android"; then
+            cd android && bundle exec fastlane android deploy environment:staging
+          fi
+          if echo "$MSG" | grep -q "ios"; then
+            cd ios && bundle exec fastlane ios deploy environment:staging
+          fi
+
+  # ============= PROD =============
+  build-prod:
+    name: Build (prod)
+    needs: prepare
+    environment: prod
+    runs-on: [self-hosted, macos]
+    if: needs.prepare.outputs.should_run == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_CHANNEL }}
+
+      - run: flutter pub get
+
+      - name: Build
+        run: |
+          MSG="${{ needs.prepare.outputs.message }}"
+          if echo "$MSG" | grep -q "android-ios"; then
+            make build-appbundle-prod
+            make build-android-prod
+            make build-ipa-prod
+          elif echo "$MSG" | grep -q "android"; then
+            make build-appbundle-prod
+            make build-android-prod
+          elif echo "$MSG" | grep -q "ios"; then
+            make build-ipa-prod
+          else
+            exit 0
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-prod-artifacts
+          path: |
+            build/app/outputs/**/*.aab
+            build/ios/ipa/*.ipa
+
+  deploy-prod:
+    name: Deploy (prod)
+    needs: build-prod
+    environment: prod
+    runs-on: [self-hosted, macos]
+    if: needs.prepare.outputs.should_run == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-prod-artifacts
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - run: gem install bundler && bundle install || true
+
+      - name: Deploy via Fastlane
+        env:
+          ENVIRONMENT: prod
+          FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
+        run: |
+          MSG="${{ needs.prepare.outputs.message }}"
+          if echo "$MSG" | grep -q "android"; then
+            cd android && bundle exec fastlane android deploy environment:prod
+          fi
+          if echo "$MSG" | grep -q "ios"; then
+            cd ios && bundle exec fastlane ios deploy environment:prod
           fi
