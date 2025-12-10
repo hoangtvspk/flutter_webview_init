@@ -43,26 +43,26 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            baseColor.withOpacity(0.95),
-            accentColor.withOpacity(0.90),
-            baseColor.withOpacity(0.85),
+            baseColor.withValues(alpha: 0.95),
+            accentColor.withValues(alpha: 0.90),
+            baseColor.withValues(alpha: 0.85),
           ],
           stops: const [0.0, 0.5, 1.0],
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withOpacity(0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
             spreadRadius: 0,
           ),
           BoxShadow(
-            color: iconColor.withOpacity(0.15),
+            color: iconColor.withValues(alpha: 0.15),
             blurRadius: 12,
             offset: const Offset(0, 2),
             spreadRadius: -4,
@@ -76,7 +76,7 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.15),
+                color: iconColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -150,7 +150,7 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
                             child: Text(
                               provider.fileName!,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 12,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -163,7 +163,8 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4A90E2).withOpacity(0.2),
+                              color: const Color(0xFF4A90E2)
+                                  .withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -224,7 +225,7 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
                             child: Text(
                               provider.fileName!,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 12,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -316,7 +317,7 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
                       Text(
                         provider.fileName!,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 12,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -326,7 +327,7 @@ class _DownloadSnackBarState extends State<DownloadSnackBar> {
                         Text(
                           provider.errorMessage!,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withValues(alpha: 0.6),
                             fontSize: 11,
                           ),
                           maxLines: 1,

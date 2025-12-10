@@ -342,6 +342,7 @@ mixin WebViewLifecycleMixin<T extends StatefulWidget> on State<T> {
       String fileName = request.suggestedFilename.toString();
 
       final downloadProvider =
+          // ignore: use_build_context_synchronously
           Provider.of<DownloadProvider>(context, listen: false);
       await downloadProvider.startDownload(
         url: url,

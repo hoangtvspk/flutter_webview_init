@@ -2,7 +2,6 @@ import 'package:webview_base/helpers/Themes.dart';
 import 'package:webview_base/helpers/icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../../helpers/Strings.dart';
 
 class NoInternetWidget extends StatefulWidget {
   final void Function() reload;
@@ -13,7 +12,6 @@ class NoInternetWidget extends StatefulWidget {
 }
 
 class _NoInternetWidgetState extends State<NoInternetWidget> {
-  bool _isLoading = false;
   @override
   void initState() {
     super.initState();
@@ -72,15 +70,6 @@ class _NoInternetWidgetState extends State<NoInternetWidget> {
               minimumSize: Size(100, 40),
             ),
             onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-
-              Future.delayed(const Duration(seconds: 3), () {
-                setState(() {
-                  _isLoading = false;
-                });
-              });
               widget.reload();
             },
             child: const Text(
