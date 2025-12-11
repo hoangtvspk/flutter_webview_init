@@ -105,6 +105,7 @@ platform :android do
       supply(
         track: track,
         aab: aab_path,
+        release_status: "draft",
         json_key: json_key_file
       )
       UI.success("✅ Uploaded to Play Store #{track} track successfully")
