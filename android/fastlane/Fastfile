@@ -9,27 +9,27 @@ platform :android do
 
     UI.message("🚀 Deploying Android app for environment: #{env}")
 
-    # Lấy version và build number
-    version_number = get_android_version_number
-    build_number = get_android_build_number
+    # # Lấy version và build number
+    # version_number = get_android_version_number
+    # build_number = get_android_build_number
 
-    # Cập nhật version trong build.gradle.kts
-    gradle_file_path = "../app/build.gradle.kts"
-    gradle_content = File.read(gradle_file_path)
+    # # Cập nhật version trong build.gradle.kts
+    # gradle_file_path = "../app/build.gradle.kts"
+    # gradle_content = File.read(gradle_file_path)
     
-    # Cập nhật versionName
-    gradle_content = gradle_content.gsub(
-      /versionName\s*=\s*"[^"]+"/,
-      "versionName = \"#{version_number}\""
-    )
+    # # Cập nhật versionName
+    # gradle_content = gradle_content.gsub(
+    #   /versionName\s*=\s*"[^"]+"/,
+    #   "versionName = \"#{version_number}\""
+    # )
     
-    # Cập nhật versionCode
-    gradle_content = gradle_content.gsub(
-      /versionCode\s*=\s*\d+/,
-      "versionCode = #{build_number}"
-    )
+    # # Cập nhật versionCode
+    # gradle_content = gradle_content.gsub(
+    #   /versionCode\s*=\s*\d+/,
+    #   "versionCode = #{build_number}"
+    # )
     
-    File.write(gradle_file_path, gradle_content)
+    # File.write(gradle_file_path, gradle_content)
 
     # begin
     #     gradle(task: gradle_task)
