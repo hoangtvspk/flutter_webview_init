@@ -1,139 +1,57 @@
-default_platform(:ios)
+platform :ios, '15.0'
 
-platform :ios do
-  desc "Build and deploy iOS app to Firebase App Distribution and TestFlight/App Store"
-  lane :deploy do |options|
-    env = options[:environment] || "dev" # environment default dev
-    firebase_app_id = ENV["FIREBASE_IOS_APP_ID"] 
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
-    UI.message("🚀 Deploying iOS app for environment: #{env}")
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
 
-    # Chạy pod install an toàn bằng Fastlane action
-   cocoapods(
-      clean_install: true,
-      repo_update: false
-    )
-
-    version_number = read_version_number
-    build_number = read_ios_build_number
-
-    UI.message("Using version: #{version_number}, build: #{build_number}")
-
-    scheme = get_scheme(env: env)
-    UI.message("Using scheme: #{scheme}")
-
-    # Build app
-    begin
-        gym(
-            scheme: scheme,
-            clean: true,
-            export_method: "app-store",
-            output_directory: "../build/ios/ipa",
-            output_name: "App_#{env}.ipa"
-        )
-    rescue => e
-        UI.error("❌ Failed to build iOS app: #{e.message}")
-        next
-    end
-
-    ipa_path = "../build/ios/ipa/App_#{env}.ipa"
-
-    # Firebase App Distribution upload
-    if firebase_app_id && File.exist?(ipa_path)
-        begin
-            firebase_app_distribution(
-              app: firebase_app_id,
-              ipa_path: ipa_path,
-              groups: "beta-testers",
-              release_notes: "Deploying #{env} build - #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            UI.success("Uploaded to Firebase App Distribution successfully ✅")
-        rescue => e
-            UI.error("❌ Failed to upload to Firebase: #{e.message}")
-        end
-    else
-        UI.message("Firebase App ID: #{firebase_app_id}")
-        UI.message("IPA path: #{ipa_path}")
-        UI.error("Firebase App ID not set or IPA not found, skipping Firebase upload.")
-    end
-
-    # Upload lên TestFlight hoặc App Store nếu là prod
-    if env == "prod"
-        begin
-            deliver(force: false, ipa: ipa_path)
-        rescue => e
-            UI.error("❌ Failed to upload to App Store: #{e.message}")
-        end
-    else
-        begin
-            pilot(
-              api_key: app_store_connect_api_key(
-                key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
-                issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-                key_content: ENV["APP_STORE_CONNECT_API_KEY"]
-              ),
-              skip_submission: true, 
-              ipa: ipa_path
-            )
-        rescue => e
-            UI.error("❌ Failed to upload to TestFlight: #{e.message}")
-        end
-    end
-
-    UI.success("iOS deploy lane completed 🎉")
-    
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
   end
 
-  private_lane :read_version_number do
-    info_plist_path = File.expand_path("../Runner/Info.plist", __dir__)
-    UI.message("[DEBUG] Current Dir: #{Dir.pwd}")
-    UI.message("[DEBUG] Info.plist exists? #{File.exist?(info_plist_path)} at #{info_plist_path}")
-    unless File.exist?(info_plist_path)
-      UI.error("❌ Info.plist not found at #{info_plist_path}. Please check your working directory and path.")
-      next nil
-    end
-
-    version = get_info_plist_value(
-      path: info_plist_path,
-      key: "CFBundleShortVersionString"
-    )
-    UI.message("📱 iOS Version from Info.plist: #{version}")
-    next version
-  rescue => e
-    UI.error("❌ Failed to read version from Info.plist: #{e.message}")
-    next nil
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
   end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
 
-  private_lane :read_ios_build_number do
-    info_plist_path = File.expand_path("../Runner/Info.plist", __dir__)
-    UI.message("[DEBUG] Current Dir: #{Dir.pwd}")
-    UI.message("[DEBUG] Info.plist exists? #{File.exist?(info_plist_path)} at #{info_plist_path}")
-    unless File.exist?(info_plist_path)
-      UI.error("❌ Info.plist not found at #{info_plist_path}. Please check your working directory and path.")
-      next 1
-    end
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
 
-    current_build = get_info_plist_value(
-      path: info_plist_path,
-      key: "CFBundleVersion"
-    ).to_i
-    new_build = current_build + 1
-    UI.message("📱 iOS Build number: #{new_build}")
-    next new_build
-  rescue => e
-    UI.error("❌ Failed to read build number from Info.plist: #{e.message}")
-    next 1
-  end
+flutter_ios_podfile_setup
 
-  private_lane :get_scheme do |options|
-    env = options[:env]
-    case env
-    when "prod"
-      next "prod"
-    when "staging"
-      next "staging"
-    else
-      next "dev"
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+target 'Runner-staging' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+target 'Runner-dev' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
     end
   end
 end
