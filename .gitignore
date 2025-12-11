@@ -125,3 +125,5 @@ app.*.symbols
 lib/config/.env.*
 !lib/config/.env.example
 .bundle/config
+ios/.bundle/config
+ios/fastlane/Pluginfile
