@@ -94,7 +94,7 @@ platform :android do
     json_key_file = File.expand_path("../../google-play-service-account.json", __dir__)
 
     begin
-      track = env == "prod" ? "production" : "beta"
+      track = env == "prod" ? "production" : "internal"
       UI.message("Debug info:")
       UI.message("Current directory: #{Dir.pwd}")
       UI.message("JSON file path: #{json_key_file}")
