@@ -221,8 +221,7 @@ jobs:
           echo "Workspace after download: $(pwd)"
           ls -lah build/app/outputs || true
           ls -lah build/app/outputs/flutter-apk || true
-          ls -lah app/outputs || true
-          ls -lah app/outputs/flutter-apk || true
+          ls -lah build/ios/ipa || true
 
       - name: Install bundler (system Ruby)
         run: |

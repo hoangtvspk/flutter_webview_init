@@ -36,7 +36,22 @@ platform :ios do
   #       next
   #   end
 
-    ipa_path = "../build/ios/ipa/App_#{env}.ipa"
+    pathRelease = File.expand_path("../../build/ios/ipa", __dir__)
+    UI.message "📂 ../../build/ios/ipa: #{pathRelease}"
+
+    if File.directory?(pathRelease)
+      UI.message "📁 Contents of #{pathRelease}:"
+      Dir.entries(pathRelease).each { |entry| UI.message "  - #{entry}" }
+    else
+      UI.error "❌ Folder not found: #{pathRelease}"
+    end
+
+    
+
+    ipa_path = File.expand_path("../../build/ios/ipa/App_#{env}.ipa", __dir__)
+    UI.message("📦 Using IPA path: #{ipa_path}")
+
+    UI.message "📂 firebase_app_id: #{firebase_app_id}"
 
     # Firebase App Distribution upload
     if firebase_app_id && File.exist?(ipa_path)
