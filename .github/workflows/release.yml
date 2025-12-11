@@ -235,6 +235,7 @@ jobs:
           ENVIRONMENT: dev
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
+          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
         run: |
           set -ex
           MSG="${{ needs.prepare.outputs.message }}"
