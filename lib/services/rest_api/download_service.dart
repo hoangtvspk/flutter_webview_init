@@ -39,7 +39,7 @@ class DownloadService {
           await file.writeAsBytes(bytes);
           streamController.add('100%');
           onProgress('100%');
-          print('✅ File saved to: ${file.path}');
+          print('✅ File saved to ${file.path}');
           savePath = file.path;
           return savePath;
         } catch (e) {
