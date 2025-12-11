@@ -4,37 +4,37 @@ platform :ios do
   desc "Build and deploy iOS app to Firebase App Distribution and TestFlight/App Store"
   lane :deploy do |options|
     env = options[:environment] || "dev" # environment default dev
-    firebase_app_id = options[:firebase_app_id] || ENV["FIREBASE_IOS_APP_ID"]
+    firebase_app_id = ENV["FIREBASE_IOS_APP_ID"] 
 
     UI.message("🚀 Deploying iOS app for environment: #{env}")
 
-    version_number = get_version_number
-    build_number = get_ios_build_number
-    increment_version_number(
-      version_number: version_number,
-      xcodeproj: "../Runner.xcodeproj"
-    )
-    increment_build_number(
-      build_number: build_number,
-      xcodeproj: "../Runner.xcodeproj"
-    )
+    # Chạy pod install an toàn bằng Fastlane action
+  #  cocoapods(
+  #     clean_install: true,
+  #     repo_update: false
+  #   )
 
-    scheme = get_scheme(env)
-    UI.message("Using scheme: #{scheme}")
+  #   version_number = read_version_number
+  #   build_number = read_ios_build_number
 
-    # Build app
-    begin
-        gym(
-            scheme: scheme,
-            clean: true,
-            export_method: env == "prod" ? "app-store" : "ad-hoc",
-            output_directory: "../build/ios/ipa",
-            output_name: "App_#{env}.ipa"
-        )
-    rescue => e
-        UI.error("❌ Failed to build iOS app: #{e.message}")
-        return
-    end
+  #   UI.message("Using version: #{version_number}, build: #{build_number}")
+
+  #   scheme = get_scheme(env: env)
+  #   UI.message("Using scheme: #{scheme}")
+
+  #   # Build app
+  #   begin
+  #       gym(
+  #           scheme: scheme,
+  #           clean: true,
+  #           export_method: "app-store",
+  #           output_directory: "../build/ios/ipa",
+  #           output_name: "App_#{env}.ipa"
+  #       )
+  #   rescue => e
+  #       UI.error("❌ Failed to build iOS app: #{e.message}")
+  #       next
+  #   end
 
     ipa_path = "../build/ios/ipa/App_#{env}.ipa"
 
@@ -52,6 +52,8 @@ platform :ios do
             UI.error("❌ Failed to upload to Firebase: #{e.message}")
         end
     else
+        UI.message("Firebase App ID: #{firebase_app_id}")
+        UI.message("IPA path: #{ipa_path}")
         UI.error("Firebase App ID not set or IPA not found, skipping Firebase upload.")
     end
 
@@ -64,7 +66,15 @@ platform :ios do
         end
     else
         begin
-            pilot(skip_submission: true, ipa: ipa_path)
+            pilot(
+              api_key: app_store_connect_api_key(
+                key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+                issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+                key_content: ENV["APP_STORE_CONNECT_API_KEY"]
+              ),
+              skip_submission: true, 
+              ipa: ipa_path
+            )
         rescue => e
             UI.error("❌ Failed to upload to TestFlight: #{e.message}")
         end
@@ -74,43 +84,56 @@ platform :ios do
     
   end
 
-  private_lane :get_version_number do
-    # Đọc version từ Info.plist
-    info_plist_path = "../Runner/Info.plist"
+  private_lane :read_version_number do
+    info_plist_path = File.expand_path("../Runner/Info.plist", __dir__)
+    UI.message("[DEBUG] Current Dir: #{Dir.pwd}")
+    UI.message("[DEBUG] Info.plist exists? #{File.exist?(info_plist_path)} at #{info_plist_path}")
     unless File.exist?(info_plist_path)
-      UI.error("❌ Info.plist not found")
-      return nil
+      UI.error("❌ Info.plist not found at #{info_plist_path}. Please check your working directory and path.")
+      next nil
     end
-  
-    # Sử dụng PlistBuddy để đọc version
-    version = sh("defaults read #{info_plist_path} CFBundleShortVersionString").strip
+
+    version = get_info_plist_value(
+      path: info_plist_path,
+      key: "CFBundleShortVersionString"
+    )
     UI.message("📱 iOS Version from Info.plist: #{version}")
-    return version
+    next version
   rescue => e
     UI.error("❌ Failed to read version from Info.plist: #{e.message}")
-    return nil
+    next nil
   end
 
-  private_lane :get_ios_build_number do
-    # Đọc build number từ Info.plist
-    info_plist_path = "../Runner/Info.plist"
+  private_lane :read_ios_build_number do
+    info_plist_path = File.expand_path("../Runner/Info.plist", __dir__)
+    UI.message("[DEBUG] Current Dir: #{Dir.pwd}")
+    UI.message("[DEBUG] Info.plist exists? #{File.exist?(info_plist_path)} at #{info_plist_path}")
     unless File.exist?(info_plist_path)
-      UI.error("❌ Info.plist not found")
-      return 1
+      UI.error("❌ Info.plist not found at #{info_plist_path}. Please check your working directory and path.")
+      next 1
     end
-  
-    # Sử dụng PlistBuddy để đọc build number
-    current_build = sh("defaults read #{info_plist_path} CFBundleVersion").strip.to_i
+
+    current_build = get_info_plist_value(
+      path: info_plist_path,
+      key: "CFBundleVersion"
+    ).to_i
     new_build = current_build + 1
-    
     UI.message("📱 iOS Build number: #{new_build}")
-    return new_build
+    next new_build
   rescue => e
     UI.error("❌ Failed to read build number from Info.plist: #{e.message}")
-    return 1
+    next 1
   end
 
-  private_lane :get_scheme do |env|
-    return env == "prod" ? "AppProdScheme" : "AppDevScheme"
+  private_lane :get_scheme do |options|
+    env = options[:env]
+    case env
+    when "prod"
+      next "prod"
+    when "staging"
+      next "staging"
+    else
+      next "dev"
+    end
   end
 end

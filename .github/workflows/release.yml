@@ -236,6 +236,10 @@ jobs:
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
           PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           set -ex
           MSG="${{ needs.prepare.outputs.message }}"
@@ -278,16 +282,16 @@ jobs:
       - name: Debug signing files (staging)
         run: |
           echo "Workspace: $(pwd)"
+          ls -lah lib/config || true
           ls -lah android || true
           ls -lah android/app || true
-          ls -lah android/key.properties || true
-          ls -lah android/app/app-release-key.jks || true
 
       - run: flutter pub get
 
       - name: Build
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
+          echo "Building for: $MSG"
           if echo "$MSG" | grep -q "android-ios"; then
             make build-appbundle-staging
             make build-android-staging
@@ -298,6 +302,7 @@ jobs:
           elif echo "$MSG" | grep -q "ios"; then
             make build-ipa-staging
           else
+            echo "No platform in commit message => skip"
             exit 0
           fi
 
@@ -306,11 +311,18 @@ jobs:
           name: build-staging-artifacts
           path: |
             build/app/outputs/**/*.aab
+            build/app/outputs/**/*.apk
             build/ios/ipa/*.ipa
+            lib/config/.env.dev
+            lib/config/.env.staging
+            lib/config/.env.prod
+            google-play-service-account.json
+            android/app/app-release-key.jks
+            android/key.properties
 
   deploy-staging:
     name: Deploy (staging)
-    needs: build-staging
+    needs: [prepare, build-staging]
     environment: staging
     runs-on: [self-hosted, macos]
     if: needs.prepare.outputs.should_run == 'true'
@@ -319,6 +331,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: build-staging-artifacts
+
+      - name: Debug downloaded Android artifacts
+        run: |
+          echo "Workspace after download: $(pwd)"
+          ls -lah build/app/outputs || true
+          ls -lah build/app/outputs/flutter-apk || true
+          ls -lah app/outputs || true
+          ls -lah app/outputs/flutter-apk || true
 
       - name: Install bundler (system Ruby)
         run: |
@@ -331,19 +351,34 @@ jobs:
           ENVIRONMENT: staging
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
+          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
+          set -ex
           MSG="${{ needs.prepare.outputs.message }}"
+          echo "Deploy message: $MSG"
+
           if echo "$MSG" | grep -q "android"; then
             cd android
             bundle _2.7.2_ config set --local path vendor/bundle
             bundle _2.7.2_ install --jobs 4 --retry 3
             bundle _2.7.2_ exec fastlane android deploy environment:staging --verbose
+            cd -
+          else
+            echo "Skip Android deploy: message missing 'android'"
           fi
+
           if echo "$MSG" | grep -q "ios"; then
             cd ios
             bundle _2.7.2_ config set --local path vendor/bundle
             bundle _2.7.2_ install --jobs 4 --retry 3
             bundle _2.7.2_ exec fastlane ios deploy environment:staging --verbose
+            cd -
+          else
+            echo "Skip iOS deploy: message missing 'ios'"
           fi
 
   # ============= PROD =============
@@ -363,16 +398,16 @@ jobs:
       - name: Debug signing files (prod)
         run: |
           echo "Workspace: $(pwd)"
+          ls -lah lib/config || true
           ls -lah android || true
           ls -lah android/app || true
-          ls -lah android/key.properties || true
-          ls -lah android/app/app-release-key.jks || true
 
       - run: flutter pub get
 
       - name: Build
         run: |
           MSG="${{ needs.prepare.outputs.message }}"
+          echo "Building for: $MSG"
           if echo "$MSG" | grep -q "android-ios"; then
             make build-appbundle-prod
             make build-android-prod
@@ -383,6 +418,7 @@ jobs:
           elif echo "$MSG" | grep -q "ios"; then
             make build-ipa-prod
           else
+            echo "No platform in commit message => skip"
             exit 0
           fi
 
@@ -391,11 +427,18 @@ jobs:
           name: build-prod-artifacts
           path: |
             build/app/outputs/**/*.aab
+            build/app/outputs/**/*.apk
             build/ios/ipa/*.ipa
+            lib/config/.env.dev
+            lib/config/.env.staging
+            lib/config/.env.prod
+            google-play-service-account.json
+            android/app/app-release-key.jks
+            android/key.properties
 
   deploy-prod:
     name: Deploy (prod)
-    needs: build-prod
+    needs: [prepare, build-prod]
     environment: prod
     runs-on: [self-hosted, macos]
     if: needs.prepare.outputs.should_run == 'true'
@@ -404,6 +447,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: build-prod-artifacts
+
+      - name: Debug downloaded Android artifacts
+        run: |
+          echo "Workspace after download: $(pwd)"
+          ls -lah build/app/outputs || true
+          ls -lah build/app/outputs/flutter-apk || true
+          ls -lah app/outputs || true
+          ls -lah app/outputs/flutter-apk || true
 
       - name: Install bundler (system Ruby)
         run: |
@@ -416,17 +467,32 @@ jobs:
           ENVIRONMENT: prod
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_IOS_APP_ID: ${{ secrets.FIREBASE_IOS_APP_ID }}
+          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
+          set -ex
           MSG="${{ needs.prepare.outputs.message }}"
+          echo "Deploy message: $MSG"
+
           if echo "$MSG" | grep -q "android"; then
             cd android
             bundle _2.7.2_ config set --local path vendor/bundle
             bundle _2.7.2_ install --jobs 4 --retry 3
             bundle _2.7.2_ exec fastlane android deploy environment:prod --verbose
+            cd -
+          else
+            echo "Skip Android deploy: message missing 'android'"
           fi
+
           if echo "$MSG" | grep -q "ios"; then
             cd ios
             bundle _2.7.2_ config set --local path vendor/bundle
             bundle _2.7.2_ install --jobs 4 --retry 3
             bundle _2.7.2_ exec fastlane ios deploy environment:prod --verbose
+            cd -
+          else
+            echo "Skip iOS deploy: message missing 'ios'"
           fi
