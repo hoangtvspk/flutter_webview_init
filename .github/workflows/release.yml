@@ -246,9 +246,7 @@ jobs:
 
           if echo "$MSG" | grep -q "android"; then
             cd android
-            bundle _2.7.2_ config set --local path vendor/bundle
-            bundle _2.7.2_ install --jobs 4 --retry 3
-            bundle _2.7.2_ exec fastlane android deploy environment:dev --verbose
+            bundle exec fastlane android deploy environment:dev --verbose
             cd -
           else
             echo "Skip Android deploy: message missing 'android'"
@@ -256,9 +254,7 @@ jobs:
 
           if echo "$MSG" | grep -q "ios"; then
             cd ios
-            bundle _2.7.2_ config set --local path vendor/bundle
-            bundle _2.7.2_ install --jobs 4 --retry 3
-            bundle _2.7.2_ exec fastlane ios deploy environment:dev --verbose
+            bundle exec fastlane ios deploy environment:dev --verbose
             cd -
           else
             echo "Skip iOS deploy: message missing 'ios'"
