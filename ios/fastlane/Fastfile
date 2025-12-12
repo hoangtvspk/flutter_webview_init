@@ -1,10 +1,33 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Description of what the lane does"
+  lane :custom_lane do
+    # add actions here: https://docs.fastlane.tools/actions
+  end
+end
 default_platform(:ios)
 
 platform :ios do
   desc "Build and deploy iOS app to Firebase App Distribution and TestFlight/App Store"
   lane :deploy do |options|
     env = options[:environment] || "dev" # environment default dev
-    firebase_app_id = ENV["FIREBASE_IOS_APP_ID"] 
+    firebase_app_id = "1:130152981226:ios:4936efd4ddeba013c1ed93"
 
     UI.message("🚀 Deploying iOS app for environment: #{env}")
 
