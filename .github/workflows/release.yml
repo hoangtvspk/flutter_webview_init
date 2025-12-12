@@ -246,6 +246,8 @@ jobs:
 
           if echo "$MSG" | grep -q "android"; then
             cd android
+            bundle config set path 'vendor/bundle'
+            bundle install --jobs 4 --retry 3
             bundle exec fastlane android deploy environment:dev --verbose
             cd -
           else
@@ -254,6 +256,8 @@ jobs:
 
           if echo "$MSG" | grep -q "ios"; then
             cd ios
+            bundle config set path 'vendor/bundle'
+            bundle install --jobs 4 --retry 3
             bundle exec fastlane ios deploy environment:dev --verbose
             cd -
           else
