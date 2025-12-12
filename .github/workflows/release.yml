@@ -51,6 +51,15 @@ jobs:
             echo "Commit message does not contain 'deploy' => skipping build/deploy"
           fi
 
+      - name: Log Ruby/Bundler/Fastlane versions
+        run: |
+          set -x
+          ruby -v
+          which bundle || true
+          bundle -v || true
+          bundler -v || true
+          fastlane -v || true
+
       - name: Check Flutter installed
         if: steps.check.outputs.should_run == 'true'
         id: check_flutter
