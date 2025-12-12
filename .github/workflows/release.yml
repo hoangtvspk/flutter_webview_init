@@ -59,6 +59,8 @@ jobs:
           bundle -v || true
           bundler -v || true
           fastlane -v || true
+          bundle config set path 'vendor/bundle'
+          bundle install --jobs 4 --retry 3
 
       - name: Check Flutter installed
         if: steps.check.outputs.should_run == 'true'
