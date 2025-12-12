@@ -59,8 +59,10 @@ jobs:
           bundle -v || true
           bundler -v || true
           fastlane -v || true
+          cd android
           bundle config set path 'vendor/bundle'
           bundle install --jobs 4 --retry 3
+          cd -
 
       - name: Check Flutter installed
         if: steps.check.outputs.should_run == 'true'
