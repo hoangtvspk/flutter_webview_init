@@ -60,7 +60,7 @@ jobs:
           bundler -v || true
           fastlane -v || true
           cd android
-          bundle config build.nokogiri --use-system-libraries
+          bundle config set build.nokogiri --use-system-libraries
           bundle config set path 'vendor/bundle'
           bundle install --jobs 4 --retry 3
           cd -
