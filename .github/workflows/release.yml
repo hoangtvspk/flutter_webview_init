@@ -60,8 +60,8 @@ jobs:
           bundler -v || true
           fastlane -v || true
           cd android
-          bundle config set path 'vendor/bundle'
-          bundle install --jobs 4 --retry 3
+          bundle _4.0.1_ config set path 'vendor/bundle'
+          bundle _4.0.1_ install --jobs 4 --retry 3
           cd -
 
       - name: Check Flutter installed
