@@ -223,12 +223,6 @@ jobs:
           ls -lah build/app/outputs/flutter-apk || true
           ls -lah build/ios/ipa || true
 
-      - name: Install bundler (system Ruby)
-        run: |
-          ruby -v
-          gem install bundler --user-install || gem install bundler
-          echo "$(ruby -e 'print Gem.user_dir')/bin" >> "$GITHUB_PATH"
-
       - name: Deploy via Fastlane
         env:
           ENVIRONMENT: dev
