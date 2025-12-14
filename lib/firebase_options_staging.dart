@@ -50,19 +50,20 @@ class DefaultFirebaseStagingOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBpeVGS5amiflaiQIOxwIeM9ULapzesp9o',
-    appId: '1:130152981226:android:a2db94d9d8b78a6cc1ed93',
-    messagingSenderId: '130152981226',
-    projectId: 'init-webview-dev',
-    storageBucket: 'init-webview-dev.firebasestorage.app',
+    apiKey: 'AIzaSyD3fjhMW64kW6RA4U-2tIGiTQDC7gjV0t0',
+    appId: '1:817945695224:android:4c5a08e8db06c7ebd47c0d',
+    messagingSenderId: '817945695224',
+    projectId: 'init-webview-staging',
+    storageBucket: 'init-webview-staging.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDiGD-vYUaduIbZJI19cTBit9IPX0GCuEY',
-    appId: '1:130152981226:ios:e4e7768c703dc6fac1ed93',
-    messagingSenderId: '130152981226',
-    projectId: 'init-webview-dev',
-    storageBucket: 'init-webview-dev.firebasestorage.app',
+    apiKey: 'AIzaSyBxzcGv2oT1bllFb50ZsVql5BI9hBjcXF4',
+    appId: '1:817945695224:ios:e959c3e716d2d91fd47c0d',
+    messagingSenderId: '817945695224',
+    projectId: 'init-webview-staging',
+    storageBucket: 'init-webview-staging.firebasestorage.app',
     iosBundleId: 'app.base.webview.staging',
   );
+
 }

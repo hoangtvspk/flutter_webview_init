@@ -30,6 +30,7 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9C1261117098FE9CAD9DD48B /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F85B097B78DBAB609873A7B /* Pods_Runner.framework */; };
+		EC2D4E847B370F186457D107 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 16EC999D16178104F13DB978 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,6 +87,7 @@
 		0CB5FB37D2E35949EEA16582 /* Pods-Runner-dev.profile-dev.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-dev.profile-dev.xcconfig"; path = "Target Support Files/Pods-Runner-dev/Pods-Runner-dev.profile-dev.xcconfig"; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		16EC999D16178104F13DB978 /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		18B340CB2E3558352EF84694 /* Pods-Runner-staging.debug-dev.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-staging.debug-dev.xcconfig"; path = "Target Support Files/Pods-Runner-staging/Pods-Runner-staging.debug-dev.xcconfig"; sourceTree = "<group>"; };
 		1D8ED58336E60C31958D3F27 /* Pods-Runner-staging.release-prod.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner-staging.release-prod.xcconfig"; path = "Target Support Files/Pods-Runner-staging/Pods-Runner-staging.release-prod.xcconfig"; sourceTree = "<group>"; };
 		1EBFFED53C58C0CA72500AAB /* Pods-Runner.release-dev.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release-dev.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release-dev.xcconfig"; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"dev/GoogleService-Info.plist",
+				"staging/GoogleService-Info.plist",
 			);
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 		};
@@ -149,8 +152,17 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				"prod/GoogleService-Info.plist",
+				"staging/GoogleService-Info.plist",
 			);
 			target = 04453D922EE67927003D4B9D /* Runner-dev */;
+		};
+		2082C52C2EEE8BA600A08921 /* Exceptions for "Config" folder in "Runner-staging" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"dev/GoogleService-Info.plist",
+				"prod/GoogleService-Info.plist",
+			);
+			target = 04453DAA2EE6793B003D4B9D /* Runner-staging */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -160,6 +172,7 @@
 			exceptions = (
 				04453E012EE6A964003D4B9D /* Exceptions for "Config" folder in "Runner" target */,
 				04453E222EE6AA53003D4B9D /* Exceptions for "Config" folder in "Runner-dev" target */,
+				2082C52C2EEE8BA600A08921 /* Exceptions for "Config" folder in "Runner-staging" target */,
 			);
 			explicitFileTypes = {
 			};
@@ -288,6 +301,7 @@
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				0E4EC01268FED546A7DA8ADC /* Pods */,
 				5857700503AE62A8EC060F81 /* Frameworks */,
+				16EC999D16178104F13DB978 /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -498,6 +512,7 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				EC2D4E847B370F186457D107 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -517,7 +532,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build\n";
 		};
 		04453DA12EE67927003D4B9D /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
