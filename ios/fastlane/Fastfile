@@ -27,7 +27,7 @@ platform :ios do
   desc "Build and deploy iOS app to Firebase App Distribution and TestFlight/App Store"
   lane :deploy do |options|
     env = options[:environment] || "dev" # environment default dev
-    firebase_app_id = "1:130152981226:ios:4936efd4ddeba013c1ed93"
+    firebase_app_id = ENV["FIREBASE_IOS_APP_ID"]
 
     UI.message("🚀 Deploying iOS app for environment: #{env}")
 

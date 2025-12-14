@@ -131,7 +131,7 @@ jobs:
 
   call_build_and_deploy:
     name: Call Build & Deploy
-
+    needs: [analyze, test]
     uses: ./.github/workflows/release.yml
     with:
       commit_message: ${{ github.event.head_commit.message }}
